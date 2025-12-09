@@ -653,6 +653,25 @@
           <div class="emoji-wrap" id="emojiWrap">
             <div class="emoji" id="emoji">😀</div>
           </div>
+
+          <!-- STATE DEBUG LABEL (lower left) -->
+          <div id="stateDebug"
+               style="
+                 position:absolute;
+                 bottom:8px;
+                 left:8px;
+                 padding:4px 6px;
+                 font-size:10px;
+                 font-family:'Saira',sans-serif;
+                 letter-spacing:0.1em;
+                 background:rgba(0,0,0,0.35);
+                 color:rgba(255,255,255,0.85);
+                 border-radius:4px;
+                 pointer-events:none;
+                 text-transform:uppercase;
+               ">
+            STATE: ---
+          </div>
         </div>
       </div>
 
@@ -1287,6 +1306,13 @@
       }
     }
 
+    // ---------- State debug helper ----------
+    function updateStateDebug(state) {
+      const el = document.getElementById("stateDebug");
+      if (!el) return;
+      el.textContent = "STATE: " + (state || "---");
+    }
+
     // ---------- Main wiring ----------
 
     const screenUI    = new ScreenUI();
@@ -1377,6 +1403,7 @@
       lastChange = Date.now();
       holdMs = randomHoldDuration();
       screenUI.setEmoji(emoji, newState);
+      updateStateDebug(newState);
     }
 
     function tick() {
@@ -1384,6 +1411,7 @@
       const idle = now - lastInteraction;
 
       const newState = classifyState(motionState, audioState);
+      updateStateDebug(newState);
 
       const stateChanged = newState !== currentState;
       const interestingStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
@@ -1414,6 +1442,7 @@
       currentEmoji = initEmoji;
       currentState = initState;
       screenUI.setEmoji(initEmoji, initState);
+      updateStateDebug(initState);
 
       const color = screenUI.getCurrentThemeLightColor();
       graphUI.setColor(color);
