@@ -629,7 +629,7 @@
       <div class="sensor-title">Enable Motion &amp; Mic</div>
       <div class="sensor-text">
         Mount your phone in its normal driving position, then tap Allow.
-        Emoji Buddy will treat this as “zero” and react to bumps, G-forces, and sound.
+        Emoji Buddy will treat this as “zero” and adapt to bumps, G-forces, and sound over time.
         No data is stored or shared; all processing happens locally on your device.
       </div>
       <div class="sensor-actions">
@@ -708,26 +708,32 @@
       "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
     ];
 
-    const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪"];
+    const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪","🤗","🫠"];
+    const EMOJI_DEEP_REST   = ["😴","😪","🫩"];
     const EMOJI_HARD_G      = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
     const EMOJI_CRUISE      = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
     const EMOJI_ROUGH_ROAD  = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
-    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠"];
-    const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
+    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
+    const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠","🎃"];
+
+    // recent-emoji buffer to avoid repetition
+    const RECENT_MAX = 8;
+    const recentEmojis = [];
 
     function classifyState(motion, audio) {
-      const { mag, jitter, lastActiveTime } = motion;
+      const { mag, jitter, lastActiveTime } = motion; // mag ~ dynamic level (0–1), jitter ~ volatility
       const level = audio.level ?? 0;
 
-      const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const now = Date.now();
       const stillMs = now - lastActiveTime;
 
+      const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && level < 0.08 && stillMs > 30000;
 
-      const isRoughRoad  = jitter > 0.35;
-      const isHardG      = mag > 0.65;
-      const isCornerCruise = mag > 0.25 && mag <= 0.65;
+      // Emphasize change (jitter) more than absolute magnitude
+      const isRoughRoad  = jitter > 0.45;
+      const isHardG      = mag > 0.75 || jitter > 0.7;
+      const isCornerCruise = mag > 0.25 && mag <= 0.75 && jitter < 0.7;
 
       const isCalmMusic  = level > 0.05 && level < 0.25;
       const isHypeMusic  = level >= 0.25;
@@ -760,7 +766,7 @@
 
       switch (state) {
         case "deepRest":
-          pool = ["😴"];
+          pool = EMOJI_DEEP_REST;
           break;
         case "rest":
           pool = EMOJI_CALM_REST;
@@ -786,17 +792,28 @@
           break;
       }
 
-      // allow a bit of chaos in non-calm states
-      if (state !== "rest" && state !== "calmMusic" && state !== "deepRest") {
-        if (Math.random() < 0.2) {
-          pool = EMOJI_ALL;
-        }
+      // Mix in global pool sometimes so calm states don't feel stale
+      const allowChaos = (state !== "deepRest");
+      if (allowChaos && Math.random() < 0.35) {
+        pool = EMOJI_ALL;
       }
 
       let next = randomEmojiFrom(pool);
-      if (pool.length > 1 && next === prevEmoji) {
+
+      // avoid repeating the last one or very recent ones when we have enough choices
+      let attempts = 0;
+      while (
+        pool.length > 1 &&
+        (next === prevEmoji || recentEmojis.includes(next)) &&
+        attempts < 12
+      ) {
         next = randomEmojiFrom(pool);
+        attempts++;
       }
+
+      // update recent history
+      recentEmojis.unshift(next);
+      if (recentEmojis.length > RECENT_MAX) recentEmojis.pop();
 
       return next;
     }
@@ -818,7 +835,7 @@
       return level;
     }
 
-    // ---------- Motion manager with baseline ----------
+    // ---------- Motion manager with adaptive baseline ----------
     class MotionManager {
       constructor(onUpdate) {
         this.onUpdate = onUpdate;
@@ -830,11 +847,15 @@
         this.motionJitter = 0;
         this.lastActiveTime = Date.now();
 
-        // baseline (zero) for mounted orientation
+        // baseline (zero) for mounted orientation, adapts over time
         this.baseX = 0;
         this.baseY = 0;
         this.baseZ = 0;
-        this.calibrated = false;
+        this.baselineInitialized = false;
+
+        this.prevRawX = 0;
+        this.prevRawY = 0;
+        this.prevRawZ = 0;
       }
 
       async start() {
@@ -856,22 +877,45 @@
         const acc = event.accelerationIncludingGravity;
         if (!acc) return;
 
-        let ax = acc.x || 0;
-        let ay = acc.y || 0;
-        let az = acc.z || 0;
+        let rawX = acc.x || 0;
+        let rawY = acc.y || 0;
+        let rawZ = acc.z || 0;
 
-        // First samples after mount: treat as baseline gravity
-        if (!this.calibrated) {
-          this.baseX = ax;
-          this.baseY = ay;
-          this.baseZ = az;
-          this.calibrated = true;
+        if (!this.baselineInitialized) {
+          this.baseX = rawX;
+          this.baseY = rawY;
+          this.baseZ = rawZ;
+          this.prevRawX = rawX;
+          this.prevRawY = rawY;
+          this.prevRawZ = rawZ;
+          this.baselineInitialized = true;
         }
 
-        // Subtract baseline so mounted portrait = "zero"
-        ax -= this.baseX;
-        ay -= this.baseY;
-        az -= this.baseZ;
+        // Change between readings (we care about magnitude of change)
+        const dX = rawX - this.prevRawX;
+        const dY = rawY - this.prevRawY;
+        const dZ = rawZ - this.prevRawZ;
+        const rawDelta = Math.sqrt(dX*dX + dY*dY + dZ*dZ);
+
+        this.prevRawX = rawX;
+        this.prevRawY = rawY;
+        this.prevRawZ = rawZ;
+
+        // Slowly adapt baseline when things are relatively calm:
+        // "getting used to" a new orientation / chaos
+        const deltaThreshold = 0.35;
+        if (rawDelta < deltaThreshold) {
+          const beta = 0.02; // how quickly baseline drifts
+          this.baseX += beta * (rawX - this.baseX);
+          this.baseY += beta * (rawY - this.baseY);
+          this.baseZ += beta * (rawZ - this.baseZ);
+        }
+
+        // Dynamic acceleration relative to current baseline
+        let ax = rawX - this.baseX;
+        let ay = rawY - this.baseY;
+        // az not used for onscreen offset but still contributes to magnitude if needed
+        let az = rawZ - this.baseZ;
 
         const sensitivity = 6.0;
         const maxOffset   = 32;
@@ -889,13 +933,15 @@
         const normX = Math.max(-1, Math.min(1, this.motionX / maxOffset));
         const normY = Math.max(-1, Math.min(1, this.motionY / maxOffset));
 
-        const magRaw = Math.min(
+        // Dynamic magnitude (using baseline-adjusted acceleration)
+        const dynMagRaw = Math.min(
           1,
-          Math.sqrt(this.motionX * this.motionX + this.motionY * this.motionY) / maxOffset
+          Math.sqrt(ax*ax + ay*ay + az*az) / 6 // 6 ~ approx 0.6g window
         );
-        const magAlpha = 0.1;
-        this.motionMag = this.motionMag + magAlpha * (magRaw - this.motionMag);
+        const magAlpha = 0.12;
+        this.motionMag = this.motionMag + magAlpha * (dynMagRaw - this.motionMag);
 
+        // Jitter = how much the onscreen offset is changing frame-to-frame
         const diff = Math.abs(this.motionX - this.prevMotionX) +
                      Math.abs(this.motionY - this.prevMotionY);
         this.prevMotionX = this.motionX;
@@ -905,7 +951,8 @@
         const jitterAlpha = 0.15;
         this.motionJitter = this.motionJitter + jitterAlpha * (diffNorm - this.motionJitter);
 
-        if (magRaw > 0.03 || diffNorm > 0.03) {
+        // If there's dynamic or jitter, consider it active
+        if (dynMagRaw > 0.03 || diffNorm > 0.03) {
           this.lastActiveTime = Date.now();
         }
 
@@ -914,18 +961,19 @@
           motionY: this.motionY,
           normX,
           normY,
-          mag: this.motionMag,
-          jitter: this.motionJitter,
+          mag: this.motionMag,      // dynamic level
+          jitter: this.motionJitter, // volatility
           lastActiveTime: this.lastActiveTime
         });
       }
     }
 
-    // ---------- Audio manager ----------
+    // ---------- Audio manager with adaptive baseline ----------
     class AudioManager {
       constructor(onUpdate) {
         this.onUpdate = onUpdate;
         this.audioLevel = 0;
+        this.noiseFloor = 0.05; // baseline "ambient"
       }
 
       async start() {
@@ -958,7 +1006,18 @@
             for (let i = 0; i < data.length; i++) sum += data[i];
             const avg = sum / data.length;
             const norm = avg / 255;
-            let level = Math.min(1, norm * 3);
+            let levelRaw = Math.min(1, norm * 3);
+
+            // Adapt noise floor so constant music/road noise becomes "normal"
+            if (levelRaw < this.noiseFloor) {
+              this.noiseFloor += 0.02 * (levelRaw - this.noiseFloor);
+            } else {
+              this.noiseFloor += 0.005 * (levelRaw - this.noiseFloor);
+            }
+
+            let level = levelRaw - this.noiseFloor;
+            if (level < 0) level = 0;
+            level = Math.min(1, level * 3); // emphasize movement above baseline
 
             const aAlpha = 0.12;
             this.audioLevel = this.audioLevel + aAlpha * (level - this.audioLevel);
