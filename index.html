@@ -571,7 +571,7 @@
     .sensor-panel-inner {
       background: rgba(15, 23, 42, 0.97);
       border-radius: 18px;
-      padding: 10px 14px 8px;
+      padding: 10px 14px 10px;
       box-shadow:
         0 16px 40px rgba(0,0,0,0.9),
         0 0 0 1px rgba(15,23,42,0.9);
@@ -593,16 +593,33 @@
       font-size: 10px;
       line-height: 1.4;
       opacity: 0.9;
+      margin-bottom: 6px;
+    }
+
+    .sensor-row {
+      margin-top: 6px;
+      border-top: 1px solid rgba(30, 64, 175, 0.5);
+      padding-top: 6px;
+    }
+
+    .sensor-subtitle {
+      font-size: 10px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      opacity: 0.85;
+      margin-bottom: 3px;
     }
 
     .sensor-actions {
       display: flex;
       justify-content: flex-end;
-      margin-top: 8px;
+      gap: 8px;
+      margin-top: 2px;
     }
 
     .sensor-btn {
-      padding: 7px 14px;
+      padding: 6px 12px;
       border-radius: 999px;
       border: 1px solid rgba(148, 163, 184, 0.8);
       background: linear-gradient(135deg, #111827, #020617);
@@ -617,6 +634,20 @@
         0 0 0 1px rgba(0,0,0,0.7);
     }
 
+    .sensor-btn.secondary {
+      background: transparent;
+      box-shadow: none;
+      border-style: dashed;
+      opacity: 0.9;
+    }
+
+    .sensor-btn.selected {
+      border-color: var(--accent);
+      box-shadow:
+        0 0 0 1px var(--accent),
+        0 0 16px rgba(250, 204, 21, 0.4);
+    }
+
     .sensor-panel.hidden {
       display: none;
     }
@@ -626,15 +657,27 @@
   <!-- Sensor / mic permission panel -->
   <div class="sensor-panel" id="sensorPanel">
     <div class="sensor-panel-inner">
-      <div class="sensor-title">Enable Motion &amp; Mic</div>
+      <div class="sensor-title">Sensors</div>
       <div class="sensor-text">
-        Mount your phone in its normal driving position, then tap Allow.
-        Emoji Buddy will treat this as “zero” and adapt to bumps and G-forces over time.
-        Mic input powers the glow and vibes only — it does not change the emoji.
-        No data is stored or shared; all processing happens locally on your device.
+        Mount your phone in its normal driving position, then choose which sensors to use.
+        Motion powers the G-meter and emoji reactions. Mic input powers the glow and vibes bar only
+        &mdash; it never changes the emoji. No data is stored or shared; everything stays on this device.
       </div>
-      <div class="sensor-actions">
-        <button class="sensor-btn" id="sensorBtn">Allow</button>
+
+      <div class="sensor-row">
+        <div class="sensor-subtitle">Motion (G-forces)</div>
+        <div class="sensor-actions">
+          <button class="sensor-btn" data-type="motion" data-choice="yes">Yes</button>
+          <button class="sensor-btn secondary" data-type="motion" data-choice="no">No</button>
+        </div>
+      </div>
+
+      <div class="sensor-row">
+        <div class="sensor-subtitle">Mic (Glow &amp; Vibes)</div>
+        <div class="sensor-actions">
+          <button class="sensor-btn" data-type="mic" data-choice="yes">Yes</button>
+          <button class="sensor-btn secondary" data-type="mic" data-choice="no">No</button>
+        </div>
       </div>
     </div>
   </div>
@@ -728,7 +771,7 @@
       "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
     ];
 
-    // calm / rest pool (kept for deepRest if you ever want)
+    // calm / rest pool (for deepRest)
     const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪","🤗","🫠"];
     const EMOJI_DEEP_REST   = ["😴","😪","🫩"];
 
@@ -737,16 +780,16 @@
 
     // Baseline personality for calm driving
     const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
+    const FAVORITE_BASELINE = "🙂";
 
-    // INCIDENT POOL: previous hardG + hypeMusic + calmMusic + cruise all merged
+    // INCIDENT POOL: previous hardG + hype/cruise/etc merged
     const EMOJI_HARD_G = [...new Set([
       // original hard G
       "😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺",
       // hype/party faces
       "🤩","🥳","😝","😜","🤪","😎","🤠","🎃",
-      // old calm music faces
+      // some calm / cruise faces mixed in for fun
       "😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰",
-      // old cruise faces
       "😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"
     ])];
 
@@ -766,20 +809,21 @@
     const SESSION_COVERAGE_TARGET = 40;
     const sessionSeen = new Set();
 
-    // Only motion-driven incident states
-    const intenseStates = new Set(["hardG", "roughRoad"]);
+    // Motion-driven incident states (override baseline temporarily)
+    const incidentStates = new Set(["hardG", "roughRoad", "deepRest"]);
 
     // Baseline persistence
     const BASELINE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
 
     let baseEmoji = null;
     let baseEmojiLastSet = 0;
-    let lastEventTime = 0;
+    let pendingBaselineChange = false;
     let currentEmoji = "😀";
     let currentState = "rest";
+    let lastEventTime = 0;
 
     // --- State classification: motion only (audio ignored for state/emoji) ---
-    function classifyState(motion, audioIgnored) {
+    function classifyState(motion, _audioIgnored) {
       const { mag, jitter, lastActiveTime } = motion;
 
       const now = Date.now();
@@ -804,6 +848,24 @@
 
     function randomEmojiFrom(list) {
       return list[Math.floor(Math.random() * list.length)];
+    }
+
+    // pick a new baseline with 70% bias to FAVORITE_BASELINE
+    // but never the same as the previous baseline
+    function pickBaselineEmoji(prevBaseline) {
+      let pool = EMOJI_BASELINE.slice();
+
+      // avoid consecutive identical baseline sessions
+      let candidates = pool.filter(e => e !== prevBaseline);
+      if (candidates.length === 0) candidates = pool.slice();
+
+      const preferFavorite = Math.random() < 0.7;
+
+      if (preferFavorite && FAVORITE_BASELINE !== prevBaseline) {
+        return FAVORITE_BASELINE;
+      }
+
+      return candidates[Math.floor(Math.random() * candidates.length)];
     }
 
     function pickEmojiForState(state, prevEmoji) {
@@ -842,8 +904,8 @@
       }
 
       if (chaosChance > 0 && Math.random() < chaosChance) {
-        if (intenseStates.has(state)) {
-          pool = EMOJI_ALL; // full chaos for intense states
+        if (incidentStates.has(state)) {
+          pool = EMOJI_ALL; // full chaos for incident states
         } else {
           pool = SAFE_CHAOS_POOL; // safe faces for calm chaos
         }
@@ -880,15 +942,6 @@
       sessionSeen.add(next);
 
       return next;
-    }
-
-    function pickBaselineEmoji(prevEmoji) {
-      // baseline faces only
-      let pool = EMOJI_BASELINE.slice();
-      if (pool.length > 1 && pool.includes(prevEmoji)) {
-        pool = pool.filter(e => e !== prevEmoji);
-      }
-      return randomEmojiFrom(pool);
     }
 
     function vibeBaseFromEmoji(e) {
@@ -1328,7 +1381,6 @@
     const screenUI    = new ScreenUI();
     const graphUI     = new MotionGraphUI();
     const sensorPanel = document.getElementById("sensorPanel");
-    const sensorBtn   = document.getElementById("sensorBtn");
     const speakerEl   = document.getElementById("speaker");
     const screenEl    = document.getElementById("screen");
 
@@ -1363,9 +1415,10 @@
     // Tap on screen => manually cycle baseline personality
     screenEl.addEventListener("click", () => {
       const now = Date.now();
-      const emoji = pickBaselineEmoji(currentEmoji);
+      const emoji = pickBaselineEmoji(baseEmoji);
       baseEmoji = emoji;
       baseEmojiLastSet = now;
+      pendingBaselineChange = false;
       currentEmoji = emoji;
       screenUI.setEmoji(emoji, currentState);
     });
@@ -1382,13 +1435,47 @@
       graphUI.toggle();
     }, { passive: false });
 
-    // Sensor panel allow
-    sensorBtn.addEventListener("click", async () => {
-      await Promise.allSettled([
-        motionManager.start(),
-        audioManager.start()
-      ]);
-      sensorPanel.classList.add("hidden");
+    // Sensor panel: separate yes/no for motion & mic
+    let motionChoice = null; // true/false
+    let micChoice    = null; // true/false
+    let sensorsStarted = false;
+
+    const sensorButtons = sensorPanel.querySelectorAll(".sensor-btn[data-type][data-choice]");
+
+    function tryStartSensors() {
+      if (sensorsStarted) return;
+      if (motionChoice === null || micChoice === null) return;
+
+      sensorsStarted = true;
+
+      const tasks = [];
+      if (motionChoice) tasks.push(motionManager.start());
+      if (micChoice)    tasks.push(audioManager.start());
+
+      Promise.allSettled(tasks).finally(() => {
+        sensorPanel.classList.add("hidden");
+      });
+    }
+
+    sensorButtons.forEach(btn => {
+      btn.addEventListener("click", () => {
+        const type = btn.dataset.type;
+        const choice = btn.dataset.choice === "yes";
+
+        if (type === "motion") {
+          motionChoice = choice;
+        } else if (type === "mic") {
+          micChoice = choice;
+        }
+
+        // visual selected state (only one per type)
+        sensorButtons.forEach(b => {
+          if (b.dataset.type === type) b.classList.remove("selected");
+        });
+        btn.classList.add("selected");
+
+        tryStartSensors();
+      });
     });
 
     function tick() {
@@ -1396,60 +1483,66 @@
       const newState = classifyState(motionState, audioState);
       updateStateDebug(newState);
 
-      const wasIntense = intenseStates.has(currentState);
-      const isIntense  = intenseStates.has(newState);
+      const wasIncident = incidentStates.has(currentState);
+      const isIncident  = incidentStates.has(newState);
 
-      // --- Intense incident states (hardG / roughRoad) ---
-      if (isIntense) {
-        // entering or changing incident type or 3s since last event → new reaction
-        if (!wasIntense || newState !== currentState || now - lastEventTime > 3000) {
+      // mark baseline change as pending if 3 minutes elapsed
+      if (baseEmoji && (now - baseEmojiLastSet > BASELINE_DURATION_MS)) {
+        pendingBaselineChange = true;
+      }
+
+      // --- Incident states (hardG / roughRoad / deepRest) ---
+      if (isIncident) {
+        if (!wasIncident || newState !== currentState || now - lastEventTime > 3000) {
           const emoji = pickEmojiForState(newState, currentEmoji);
           currentEmoji = emoji;
           screenUI.setEmoji(emoji, newState);
           lastEventTime = now;
         }
         currentState = newState;
-        return; // during incidents we don't touch baseline timers
+        return; // while in incidents we don't change baseline
       }
 
-      // --- Calm / neutral states use baseline personality only ---
-      if (wasIntense && !isIntense) {
-        // just exited an intense state → pick a new baseline
-        const emoji = pickBaselineEmoji(currentEmoji);
-        baseEmoji = emoji;
-        baseEmojiLastSet = now;
-        currentEmoji = emoji;
-        currentState = newState;
-        screenUI.setEmoji(emoji, newState);
-        return;
-      }
+      // from here: calm / neutral (rest, cruise, neutral)
 
-      // staying in calm / neutral region
       currentState = newState;
 
-      // ensure we have a baseline emoji
+      // ensure we have a baseline
       if (!baseEmoji) {
-        const emoji = pickBaselineEmoji(currentEmoji);
-        baseEmoji = emoji;
+        const newBaseline = pickBaselineEmoji(null);
+        baseEmoji = newBaseline;
         baseEmojiLastSet = now;
-        currentEmoji = emoji;
-        screenUI.setEmoji(emoji, newState);
+        pendingBaselineChange = false;
+        currentEmoji = baseEmoji;
+        screenUI.setEmoji(baseEmoji, newState);
         return;
       }
 
-      // if we've been calm for long enough, rotate to a new baseline
-      if (now - baseEmojiLastSet > BASELINE_DURATION_MS) {
-        const emoji = pickBaselineEmoji(baseEmoji);
-        baseEmoji = emoji;
-        baseEmojiLastSet = now;
-        currentEmoji = emoji;
-        screenUI.setEmoji(emoji, newState);
-      } else {
-        // keep showing current baseline
-        if (currentEmoji !== baseEmoji) {
-          currentEmoji = baseEmoji;
-          screenUI.setEmoji(baseEmoji, newState);
+      // leaving an incident → go back to baseline (which may or may not change)
+      if (wasIncident && !isIncident) {
+        if (pendingBaselineChange) {
+          const newBaseline = pickBaselineEmoji(baseEmoji);
+          baseEmoji = newBaseline;
+          baseEmojiLastSet = now;
+          pendingBaselineChange = false;
         }
+        currentEmoji = baseEmoji;
+        screenUI.setEmoji(baseEmoji, newState);
+        return;
+      }
+
+      // calm & no incident — apply pending baseline change if any
+      if (pendingBaselineChange) {
+        const newBaseline = pickBaselineEmoji(baseEmoji);
+        baseEmoji = newBaseline;
+        baseEmojiLastSet = now;
+        pendingBaselineChange = false;
+      }
+
+      // ensure displayed emoji is baseline
+      if (currentEmoji !== baseEmoji) {
+        currentEmoji = baseEmoji;
+        screenUI.setEmoji(baseEmoji, newState);
       }
     }
 
@@ -1462,9 +1555,10 @@
       const initState = classifyState(motionState, audioState);
       currentState = initState;
 
-      const initBaseline = pickBaselineEmoji(currentEmoji);
+      const initBaseline = pickBaselineEmoji(null);
       baseEmoji = initBaseline;
       baseEmojiLastSet = now;
+      pendingBaselineChange = false;
       currentEmoji = initBaseline;
 
       screenUI.setEmoji(initBaseline, initState);
