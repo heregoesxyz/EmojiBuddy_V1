@@ -4,8 +4,6 @@
   <meta charset="UTF-8" />
   <title>Emoji Buddy · Opulent Hardware</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-
-  <!-- Brand font -->
   <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600&display=swap" rel="stylesheet">
 
   <style>
@@ -18,7 +16,7 @@
       --emoji-scale: 1;
       --emoji-offset-x: 0px;
       --emoji-offset-y: 0px;
-      --audio-glow: 0; /* 0–1 for LCD glow */
+      --audio-glow: 0;
     }
 
     * {
@@ -491,6 +489,8 @@
       font-size: 8px;
     }
 
+    /* shell wobble */
+
     .wobble {
       animation: wobble 520ms ease-in-out;
     }
@@ -620,10 +620,8 @@
     .sensor-panel.hidden {
       display: none;
     }
-
   </style>
 </head>
-
 <body>
   <!-- Sensor / mic permission panel -->
   <div class="sensor-panel" id="sensorPanel">
@@ -641,7 +639,6 @@
 
   <div class="canvas">
     <div class="gb-shell" id="gb" data-color="grape">
-
       <div class="gb-top">
         <div class="gb-brand">Emoji Buddy</div>
         <div class="gb-top-right">Opulent Hardware</div>
@@ -649,11 +646,9 @@
 
       <div class="gb-screen-frame">
         <div class="gb-screen boot-off boot-flash" id="screen">
-          <!-- Motion graph overlay -->
           <div class="motion-graph-shell" id="motionRegion">
             <canvas class="motion-graph-canvas" id="motionCanvas"></canvas>
           </div>
-
           <div class="emoji-wrap" id="emojiWrap">
             <div class="emoji" id="emoji">😀</div>
           </div>
@@ -661,7 +656,6 @@
       </div>
 
       <div class="gb-bottom">
-
         <div class="speaker" id="speaker">
           <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
           <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
@@ -696,542 +690,618 @@
             <div class="vibe-fill" id="vibeFill"></div>
           </div>
         </div>
-
       </div>
     </div>
   </div>
 
-<script>
-  const emojiList = [
-    "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌",
-    "😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩",
-    "🥳","🙂‍↕️","😏","😒","🙂‍↔️","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺",
-    "😢","😭","😮‍💨","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣",
-    "🤗","🫡","🤔","🫢","🤭","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦",
-    "😧","😮","😲","🥱","😴","🫩","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷",
-    "🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃",
-    "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
-  ];
+  <script>
+    // ---------- Emoji logic & pools ----------
+    const EMOJI_ALL = [
+      "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌",
+      "😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩",
+      "🥳","🙂‍↕️","😏","😒","🙂‍↔️","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺",
+      "😢","😭","😮‍💨","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣",
+      "🤗","🫡","🤔","🫢","🤭","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦",
+      "😧","😮","😲","🥱","😴","🫩","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷",
+      "🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃",
+      "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
+    ];
 
-  // Context emoji pools ----------------------------------------
-  const calmRestEmojis  = ["😌","☺️","😊","😇","😴","🫩","😪"];
-  const hardGEmojis     = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
-  const cruiseEmojis    = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
-  const roughRoadEmojis = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
-  const calmMusicEmojis = ["😌","☺️","😊","😇","🤗","🫡","🫠"];
-  const hypeMusicEmojis = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
+    const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪"];
+    const EMOJI_HARD_G      = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
+    const EMOJI_CRUISE      = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
+    const EMOJI_ROUGH_ROAD  = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
+    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠"];
+    const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
 
-  const gbEl        = document.getElementById("gb");
-  const screenEl    = document.getElementById("screen");
-  const emojiEl     = document.getElementById("emoji");
-  const vibeFillEl  = document.getElementById("vibeFill");
-  const colorMenu   = document.getElementById("colorMenu");
-  const sizeDial    = document.getElementById("sizeDial");
-  const sensorPanel = document.getElementById("sensorPanel");
-  const sensorBtn   = document.getElementById("sensorBtn");
+    function classifyState(motion, audio) {
+      const { mag, jitter, lastActiveTime } = motion;
+      const level = audio.level ?? 0;
 
-  const motionRegion = document.getElementById("motionRegion");
-  const motionCanvas = document.getElementById("motionCanvas");
-  const motionCtx    = motionCanvas.getContext("2d");
-  const speakerEl    = document.getElementById("speaker");
+      const isVeryStill  = mag < 0.08 && jitter < 0.05;
+      const now = Date.now();
+      const stillMs = now - lastActiveTime;
 
-  let currentEmoji    = "😀";
-  let lastInteraction = Date.now();
-  let lastChange      = Date.now();
-  let autoEnabled     = false;
-  let holdMs          = randomHoldDuration();
+      const deepRestActive = isVeryStill && level < 0.08 && stillMs > 30000;
 
-  const sizeLevels = [0.85, 1.0, 1.2];
-  const sizeAngles = [-20, 0, 20];
-  let sizeIndex    = 1;
+      const isRoughRoad  = jitter > 0.35;
+      const isHardG      = mag > 0.65;
+      const isCornerCruise = mag > 0.25 && mag <= 0.65;
 
-  // motion state
-  let motionX = 0, motionY = 0;
-  let motionNormX = 0, motionNormY = 0;
-  let motionMag = 0;     // 0–1 how strong G is
-  let motionJitter = 0;  // 0–1 how jerky
-  let prevMotionX = 0;
-  let prevMotionY = 0;
-  let lastMotionActiveTime = Date.now();
+      const isCalmMusic  = level > 0.05 && level < 0.25;
+      const isHypeMusic  = level >= 0.25;
 
-  // graph state
-  let motionGraphEnabled = false;
-  let motionGraphColor = "#7c3aed";
-  let graphWidth = 0, graphHeight = 0;
-  const TRAIL_LENGTH = 20;
-  let trail = [];
+      if (deepRestActive) return "deepRest";
 
-  // audio state
-  let audioLevel = 0;    // smoothed 0–1
-  let vibeBaseLevel = 0.5;
+      if (isVeryStill) {
+        if (level < 0.05) return "rest";
+        if (isCalmMusic)  return "calmMusic";
+        if (isHypeMusic)  return "hypeMusic";
+        return "rest";
+      }
 
-  function randomHoldDuration() {
-    return 2000 + Math.random() * 28000;
-  }
+      if (isRoughRoad)    return "roughRoad";
+      if (isHardG)        return "hardG";
+      if (isCornerCruise) return "cruise";
 
-  function randomEmojiFrom(list) {
-    return list[Math.floor(Math.random() * list.length)];
-  }
+      if (isHypeMusic) return "hypeMusic";
+      if (isCalmMusic) return "calmMusic";
 
-  function markInteraction() {
-    lastInteraction = Date.now();
-    autoEnabled = false;
-  }
-
-  function setEmoji(e, state) {
-    if (!e) return;
-    if (e === currentEmoji && Math.random() < 0.5) {
-      e = randomEmojiFrom(emojiList);
-    }
-    currentEmoji = e;
-    emojiEl.textContent = e;
-
-    // Reset motion-based classes & apply appropriate animation
-    emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
-    void emojiEl.offsetWidth; // reflow for animation restart
-
-    if (state === "hardG") {
-      emojiEl.classList.add("emoji-hard-g");
-    } else {
-      emojiEl.classList.add("emoji-pop");
+      return "neutral";
     }
 
-    gbEl.classList.remove("wobble");
-    void gbEl.offsetWidth;
-    gbEl.classList.add("wobble");
-
-    adjustVibeGauge(e);
-  }
-
-  function adjustVibeGauge(e) {
-    let level = 0.5;
-
-    const happySet = "😀😃😄😁😆😅😂🤣☺️😊😇🙂😉😌😍🥰😘😗😙😚😋😛😝😜🤪😎🤩🥳🤗🤠😺😸😹😻😼😽";
-    const lowSet   = "😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😮‍💨😤😠😡🤬😳😰😥😓😿😾";
-    const hotSet   = "🥵🤯😱😨😵😵‍💫";
-    const sickSet  = "🤢🤮🤧😷🤒🤕🥴";
-
-    if (happySet.includes(e)) level = 0.82;
-    else if (hotSet.includes(e)) level = 1.0;
-    else if (sickSet.includes(e)) level = 0.3;
-    else if (lowSet.includes(e)) level = 0.2;
-    else level = 0.55;
-
-    vibeBaseLevel = level;
-    vibeFillEl.style.transform = `scaleX(${vibeBaseLevel})`;
-  }
-
-  // CLASSIFY STATE --------------------------------------------------------
-
-  function classifyState() {
-    const isVeryStill  = motionMag < 0.08 && motionJitter < 0.05;
-    const now = Date.now();
-    const stillMs = now - lastMotionActiveTime;
-
-    // Deep rest: very still, low audio, >30s
-    const deepRestActive = isVeryStill && audioLevel < 0.08 && stillMs > 30000;
-
-    const isRoughRoad  = motionJitter > 0.35;
-    const isHardG      = motionMag > 0.65;
-    const isCornerCruise = motionMag > 0.25 && motionMag <= 0.65;
-
-    const isCalmMusic  = audioLevel > 0.05 && audioLevel < 0.25;
-    const isHypeMusic  = audioLevel >= 0.25;
-
-    if (deepRestActive) {
-      return "deepRest";
+    function randomEmojiFrom(list) {
+      return list[Math.floor(Math.random() * list.length)];
     }
 
-    // parked / very chill
-    if (isVeryStill) {
-      if (audioLevel < 0.05) return "rest";
-      if (isCalmMusic)       return "calmMusic";
-      if (isHypeMusic)       return "hypeMusic";
-      return "rest";
+    function pickEmojiForState(state, prevEmoji) {
+      let pool;
+
+      switch (state) {
+        case "deepRest":
+          pool = ["😴"];
+          break;
+        case "rest":
+          pool = EMOJI_CALM_REST;
+          break;
+        case "hardG":
+          pool = EMOJI_HARD_G;
+          break;
+        case "cruise":
+          pool = EMOJI_CRUISE;
+          break;
+        case "roughRoad":
+          pool = EMOJI_ROUGH_ROAD;
+          break;
+        case "calmMusic":
+          pool = EMOJI_CALM_MUSIC;
+          break;
+        case "hypeMusic":
+          pool = EMOJI_HYPE_MUSIC;
+          break;
+        case "neutral":
+        default:
+          pool = EMOJI_ALL;
+          break;
+      }
+
+      // prevent chaos in calm states
+      if (state !== "rest" && state !== "calmMusic" && state !== "deepRest") {
+        if (Math.random() < 0.2) {
+          pool = EMOJI_ALL;
+        }
+      }
+
+      let next = randomEmojiFrom(pool);
+      if (pool.length > 1 && next === prevEmoji) {
+        next = randomEmojiFrom(pool);
+      }
+
+      return next;
     }
 
-    // moving
-    if (isRoughRoad)    return "roughRoad";
-    if (isHardG)        return "hardG";
-    if (isCornerCruise) return "cruise";
+    function vibeBaseFromEmoji(e) {
+      let level = 0.5;
 
-    // neutral drive with music bias
-    if (isHypeMusic) return "hypeMusic";
-    if (isCalmMusic) return "calmMusic";
+      const happySet = "😀😃😄😁😆😅😂🤣☺️😊😇🙂😉😌😍🥰😘😗😙😚😋😛😝😜🤪😎🤩🥳🤗🤠😺😸😹😻😼😽";
+      const lowSet   = "😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😮‍💨😤😠😡🤬😳😰😥😓😿😾";
+      const hotSet   = "🥵🤯😱😨😵😵‍💫";
+      const sickSet  = "🤢🤮🤧😷🤒🤕🥴";
 
-    return "neutral";
-  }
+      if (happySet.includes(e)) level = 0.82;
+      else if (hotSet.includes(e)) level = 1.0;
+      else if (sickSet.includes(e)) level = 0.3;
+      else if (lowSet.includes(e)) level = 0.2;
+      else level = 0.55;
 
-  function pickContextEmoji(state) {
-    let pool;
-
-    switch (state) {
-      case "deepRest":
-        pool = ["😴"];
-        break;
-      case "rest":
-        pool = calmRestEmojis;
-        break;
-      case "hardG":
-        pool = hardGEmojis;
-        break;
-      case "cruise":
-        pool = cruiseEmojis;
-        break;
-      case "roughRoad":
-        pool = roughRoadEmojis;
-        break;
-      case "calmMusic":
-        pool = calmMusicEmojis;
-        break;
-      case "hypeMusic":
-        pool = hypeMusicEmojis;
-        break;
-      case "neutral":
-      default:
-        pool = emojiList;
-        break;
+      return level;
     }
 
-    // Only mix in the global pool in non-calm states
-    if (state !== "rest" && state !== "calmMusic" && state !== "deepRest") {
-      if (Math.random() < 0.2) {
-        pool = emojiList;
+    // ---------- Motion manager ----------
+    class MotionManager {
+      constructor(onUpdate) {
+        this.onUpdate = onUpdate;
+        this.motionX = 0;
+        this.motionY = 0;
+        this.prevMotionX = 0;
+        this.prevMotionY = 0;
+        this.motionMag = 0;
+        this.motionJitter = 0;
+        this.lastActiveTime = Date.now();
+      }
+
+      async start() {
+        if (typeof DeviceMotionEvent !== "undefined" &&
+            typeof DeviceMotionEvent.requestPermission === "function") {
+          try {
+            const res = await DeviceMotionEvent.requestPermission();
+            if (res !== "granted") return;
+          } catch (e) {
+            console.warn("Motion permission error:", e);
+            return;
+          }
+        }
+
+        window.addEventListener("devicemotion", this.handleMotion.bind(this), true);
+      }
+
+      handleMotion(event) {
+        const acc = event.accelerationIncludingGravity;
+        if (!acc) return;
+
+        const ax = acc.x || 0;
+        const ay = acc.y || 0;
+
+        const sensitivity = 6.0;
+        const maxOffset   = 32;
+
+        let targetX = ax * sensitivity;
+        let targetY = -ay * sensitivity;
+
+        targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
+        targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
+
+        const alpha = 0.25;
+        this.motionX = this.motionX + alpha * (targetX - this.motionX);
+        this.motionY = this.motionY + alpha * (targetY - this.motionY);
+
+        const normX = Math.max(-1, Math.min(1, this.motionX / maxOffset));
+        const normY = Math.max(-1, Math.min(1, this.motionY / maxOffset));
+
+        const magRaw = Math.min(
+          1,
+          Math.sqrt(this.motionX * this.motionX + this.motionY * this.motionY) / maxOffset
+        );
+        const magAlpha = 0.1;
+        this.motionMag = this.motionMag + magAlpha * (magRaw - this.motionMag);
+
+        const diff = Math.abs(this.motionX - this.prevMotionX) +
+                     Math.abs(this.motionY - this.prevMotionY);
+        this.prevMotionX = this.motionX;
+        this.prevMotionY = this.motionY;
+
+        const diffNorm = Math.min(1, diff / 20);
+        const jitterAlpha = 0.15;
+        this.motionJitter = this.motionJitter + jitterAlpha * (diffNorm - this.motionJitter);
+
+        if (magRaw > 0.03 || diffNorm > 0.03) {
+          this.lastActiveTime = Date.now();
+        }
+
+        this.onUpdate({
+          motionX: this.motionX,
+          motionY: this.motionY,
+          normX,
+          normY,
+          mag: this.motionMag,
+          jitter: this.motionJitter,
+          lastActiveTime: this.lastActiveTime
+        });
       }
     }
 
-    let next = randomEmojiFrom(pool);
+    // ---------- Audio manager ----------
+    class AudioManager {
+      constructor(onUpdate) {
+        this.onUpdate = onUpdate;
+        this.audioLevel = 0;
+      }
 
-    if (pool.length > 1 && next === currentEmoji) {
-      next = randomEmojiFrom(pool);
-    }
+      async start() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          console.warn("getUserMedia not supported");
+          return;
+        }
 
-    return next;
-  }
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: false
+            }
+          });
 
-  function nextEmojiFromContext() {
-    const state = classifyState();
-    const chosen = pickContextEmoji(state);
-    setEmoji(chosen, state);
-  }
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          const audioCtx = new AudioCtx();
+          await audioCtx.resume();
 
-  function tick() {
-    const now = Date.now();
-    const idle = now - lastInteraction;
+          const source = audioCtx.createMediaStreamSource(stream);
+          const analyser = audioCtx.createAnalyser();
+          analyser.fftSize = 1024;
+          const data = new Uint8Array(analyser.frequencyBinCount);
+          source.connect(analyser);
 
-    if (!autoEnabled && idle >= 10000) {
-      autoEnabled = true;
-      lastChange = now;
-      holdMs = randomHoldDuration();
-    }
+          const loop = () => {
+            analyser.getByteFrequencyData(data);
+            let sum = 0;
+            for (let i = 0; i < data.length; i++) sum += data[i];
+            const avg = sum / data.length;
+            const norm = avg / 255;
+            let level = Math.min(1, norm * 3);
 
-    if (autoEnabled && now - lastChange >= holdMs) {
-      nextEmojiFromContext();
-      lastChange = now;
-      holdMs = randomHoldDuration();
-    }
-  }
+            const aAlpha = 0.12;
+            this.audioLevel = this.audioLevel + aAlpha * (level - this.audioLevel);
 
-  setInterval(tick, 500);
+            this.onUpdate({ level: this.audioLevel });
 
-  colorMenu.addEventListener("click", e => {
-    const target = e.target.closest(".color-swatch");
-    if (!target) return;
-    const color = target.dataset.color;
-    gbEl.setAttribute("data-color", color);
-    updateMotionGraphColor();
-    markInteraction();
-    try { localStorage.setItem("emojiBuddyColor", color); } catch(_) {}
-  });
+            requestAnimationFrame(loop);
+          };
 
-  function applySize() {
-    const scale = sizeLevels[sizeIndex];
-    document.documentElement.style.setProperty("--emoji-scale", scale);
-    sizeDial.style.transform = `rotate(${sizeAngles[sizeIndex]}deg)`;
-  }
-
-  sizeDial.addEventListener("click", () => {
-    sizeIndex = (sizeIndex + 1) % sizeLevels.length;
-    applySize();
-    markInteraction();
-  });
-
-  // Manual tap: change emoji, but using context logic
-  screenEl.addEventListener("click", () => {
-    markInteraction();
-    nextEmojiFromContext();
-  });
-
-  /* MOTION HANDLING (hanging air freshener style) ------------------------ */
-
-  function handleMotion(event) {
-    const acc = event.accelerationIncludingGravity;
-    if (!acc) return;
-
-    const ax = acc.x || 0;
-    const ay = acc.y || 0;
-    const az = acc.z || 0;
-
-    const sensitivity = 6.0;   // px per m/s^2
-    const maxOffset   = 32;    // clamp
-
-    // Orientation note: you may want to flip signs after road testing
-    let targetX = ax * sensitivity;    // lateral
-    let targetY = -ay * sensitivity;   // vertical
-
-    targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
-    targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
-
-    const alpha = 0.25; // smoothing; smaller = heavier, more floaty
-    motionX = motionX + alpha * (targetX - motionX);
-    motionY = motionY + alpha * (targetY - motionY);
-
-    document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
-    document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
-
-    // normalized for graph (-1 to 1)
-    motionNormX = Math.max(-1, Math.min(1, motionX / maxOffset));
-    motionNormY = Math.max(-1, Math.min(1, motionY / maxOffset));
-
-    // motion magnitude (0–1)
-    const magRaw = Math.min(1, Math.sqrt(motionX*motionX + motionY*motionY) / maxOffset);
-    const magAlpha = 0.1;
-    motionMag = motionMag + magAlpha * (magRaw - motionMag);
-
-    // jitter based on frame-to-frame position changes
-    const diff = Math.abs(motionX - prevMotionX) + Math.abs(motionY - prevMotionY);
-    prevMotionX = motionX;
-    prevMotionY = motionY;
-    const diffNorm = Math.min(1, diff / 20); // tune for “roughness”
-    const jitterAlpha = 0.15;
-    motionJitter = motionJitter + jitterAlpha * (diffNorm - motionJitter);
-
-    // If there's meaningful motion, reset lastMotionActiveTime
-    if (magRaw > 0.03 || diffNorm > 0.03) {
-      lastMotionActiveTime = Date.now();
-    }
-  }
-
-  async function enableMotion() {
-    if (typeof DeviceMotionEvent !== "undefined" &&
-        typeof DeviceMotionEvent.requestPermission === "function") {
-      try {
-        const response = await DeviceMotionEvent.requestPermission();
-        if (response !== "granted") return;
-      } catch (err) {
-        console.warn("Motion permission error:", err);
-        return;
+          loop();
+        } catch (err) {
+          console.warn("Audio permission error:", err);
+        }
       }
     }
-    window.addEventListener("devicemotion", handleMotion, true);
-  }
 
-  /* AUDIO (MIC) HANDLING ------------------------------------------------- */
+    // ---------- Screen UI ----------
+    class ScreenUI {
+      constructor() {
+        this.gbEl       = document.getElementById("gb");
+        this.screenEl   = document.getElementById("screen");
+        this.emojiEl    = document.getElementById("emoji");
+        this.vibeFillEl = document.getElementById("vibeFill");
+        this.colorMenu  = document.getElementById("colorMenu");
+        this.sizeDial   = document.getElementById("sizeDial");
 
-  async function enableAudio() {
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-      console.warn("getUserMedia not supported");
-      return;
-    }
+        this.sizeLevels = [0.85, 1.0, 1.2];
+        this.sizeAngles = [-20, 0, 20];
+        this.sizeIndex  = 1;
 
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: false
-        }
-      });
+        this.vibeBaseLevel = 0.5;
 
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
-      await audioCtx.resume();
+        this.initColor();
+        this.initSizeDial();
+      }
 
-      const source = audioCtx.createMediaStreamSource(stream);
-      const analyser = audioCtx.createAnalyser();
-      analyser.fftSize = 1024;
-      const data = new Uint8Array(analyser.frequencyBinCount);
-      source.connect(analyser);
+      initColor() {
+        try {
+          const saved = localStorage.getItem("emojiBuddyColor");
+          if (saved) this.gbEl.setAttribute("data-color", saved);
+        } catch (_) {}
 
-      function audioLoop() {
-        analyser.getByteFrequencyData(data);
-        let sum = 0;
-        for (let i = 0; i < data.length; i++) {
-          sum += data[i];
-        }
-        const avg = sum / data.length;   // 0–255
-        const norm = avg / 255;          // 0–1
-        let level = Math.min(1, norm * 3);  // amplify
+        this.colorMenu.addEventListener("click", (e) => {
+          const target = e.target.closest(".color-swatch");
+          if (!target) return;
+          const color = target.dataset.color;
+          this.gbEl.setAttribute("data-color", color);
+          try { localStorage.setItem("emojiBuddyColor", color); } catch(_) {}
+          if (this.onColorChange) this.onColorChange();
+        });
+      }
 
-        // Smooth global audioLevel for state logic
-        const aAlpha = 0.12;
-        audioLevel = audioLevel + aAlpha * (level - audioLevel);
+      initSizeDial() {
+        this.applySize();
+        this.sizeDial.addEventListener("click", () => {
+          this.sizeIndex = (this.sizeIndex + 1) % this.sizeLevels.length;
+          this.applySize();
+          if (this.onInteraction) this.onInteraction();
+        });
+      }
 
-        // LCD glow amount
-        document.documentElement
-          .style
+      applySize() {
+        const scale = this.sizeLevels[this.sizeIndex];
+        document.documentElement.style.setProperty("--emoji-scale", scale);
+        this.sizeDial.style.transform = `rotate(${this.sizeAngles[this.sizeIndex]}deg)`;
+      }
+
+      forceCenterEmoji() {
+        document.documentElement.style.setProperty("--emoji-offset-x", "0px");
+        document.documentElement.style.setProperty("--emoji-offset-y", "0px");
+      }
+
+      updateMotionOffset(motionX, motionY) {
+        document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
+        document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
+      }
+
+      updateAudioGlow(level) {
+        document.documentElement.style
           .setProperty("--audio-glow", (level * 1.0).toFixed(3));
 
-        // Vibes bar pulsing around base level
-        const pulsed = Math.min(1, vibeBaseLevel * (0.7 + level * 1.0));
-        vibeFillEl.style.transform = `scaleX(${pulsed.toFixed(3)})`;
+        const pulsed = Math.min(1, this.vibeBaseLevel * (0.7 + level * 1.0));
+        this.vibeFillEl.style.transform = `scaleX(${pulsed.toFixed(3)})`;
 
-        // Glow size
         const extra = 10 + level * 32;
-        vibeFillEl.style.boxShadow = `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.98)`;
-
-        requestAnimationFrame(audioLoop);
+        this.vibeFillEl.style.boxShadow =
+          `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.98)`;
       }
 
-      audioLoop();
-    } catch (err) {
-      console.warn("Audio permission error:", err);
-    }
-  }
+      setEmoji(emoji, state) {
+        this.emojiEl.textContent = emoji;
 
-  /* MOTION GRAPH RENDERING ---------------------------------------------- */
+        this.emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
+        void this.emojiEl.offsetWidth;
 
-  function resizeMotionCanvas() {
-    const rect = motionRegion.getBoundingClientRect();
-    const dpr  = window.devicePixelRatio || 1;
-    graphWidth  = rect.width;
-    graphHeight = rect.height;
-    motionCanvas.width  = graphWidth * dpr;
-    motionCanvas.height = graphHeight * dpr;
-    motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  }
+        if (state === "hardG") {
+          this.emojiEl.classList.add("emoji-hard-g");
+        } else {
+          this.emojiEl.classList.add("emoji-pop");
+        }
 
-  function updateMotionGraphColor() {
-    const styles = getComputedStyle(gbEl);
-    const c = styles.getPropertyValue("--shell-light").trim();
-    motionGraphColor = c || "#7c3aed";
-  }
+        this.gbEl.classList.remove("wobble");
+        void this.gbEl.offsetWidth;
+        this.gbEl.classList.add("wobble");
 
-  function drawMotionGraph() {
-    const w = graphWidth;
-    const h = graphHeight;
-    if (!w || !h) return;
+        const base = vibeBaseFromEmoji(emoji);
+        this.vibeBaseLevel = base;
+        this.vibeFillEl.style.transform = `scaleX(${base})`;
+      }
 
-    motionCtx.clearRect(0, 0, w, h);
+      getCurrentThemeLightColor() {
+        const styles = getComputedStyle(this.gbEl);
+        return styles.getPropertyValue("--shell-light").trim() || "#7c3aed";
+      }
 
-    if (!motionGraphEnabled) return;
+      boot() {
+        this.screenEl.classList.add("boot-off");
+        this.screenEl.classList.add("boot-flash");
 
-    // dotted "paper" grid
-    const spacing = 8;
-    motionCtx.save();
-    motionCtx.fillStyle = motionGraphColor;
-    motionCtx.globalAlpha = 0.16;
-    for (let y = 2; y < h; y += spacing) {
-      for (let x = 2; x < w; x += spacing) {
-        motionCtx.fillRect(x, y, 1.5, 1.5);
+        setTimeout(() => {
+          this.screenEl.classList.add("boot-on");
+          this.screenEl.classList.remove("boot-off");
+
+          setTimeout(() => {
+            this.screenEl.classList.remove("boot-flash");
+          }, 600);
+        }, 260);
       }
     }
-    motionCtx.restore();
 
-    // pixel position from normalized motion
-    const margin = 4;
-    const cx = w / 2;
-    const cy = h / 2;
-    const maxX = (w / 2) - margin;
-    const maxY = (h / 2) - margin;
+    // ---------- Motion graph UI ----------
+    class MotionGraphUI {
+      constructor() {
+        this.region  = document.getElementById("motionRegion");
+        this.canvas  = document.getElementById("motionCanvas");
+        this.ctx     = this.canvas.getContext("2d");
+        this.enabled = false;
+        this.trail   = [];
+        this.TRAIL_LENGTH = 20;
+        this.width   = 0;
+        this.height  = 0;
+        this.color   = "#7c3aed";
 
-    const px = cx + motionNormX * maxX;
-    const py = cy + motionNormY * maxY;
+        window.addEventListener("resize", () => this.resize());
+        this.resize();
+        this.renderLoop();
+      }
 
-    // update trail
-    trail.unshift({ x: px, y: py });
-    if (trail.length > TRAIL_LENGTH) trail.pop();
+      setEnabled(on) {
+        this.enabled = on;
+        if (on) {
+          this.canvas.classList.add("active");
+        } else {
+          this.canvas.classList.remove("active");
+          this.trail = [];
+          this.ctx.clearRect(0, 0, this.width, this.height);
+        }
+      }
 
-    // draw trail squares with fading alpha
-    for (let i = 0; i < trail.length; i++) {
-      const t = trail[i];
-      const alpha = 1 - i / TRAIL_LENGTH;
-      const size = 5 - (i * 0.08); // slight shrink
-      const half = size / 2;
+      toggle() {
+        this.setEnabled(!this.enabled);
+      }
 
-      motionCtx.save();
-      motionCtx.globalAlpha = 0.22 + alpha * 0.6;
-      motionCtx.fillStyle = motionGraphColor;
-      motionCtx.fillRect(t.x - half, t.y - half, size, size);
-      motionCtx.restore();
+      setColor(color) {
+        this.color = color || "#7c3aed";
+      }
+
+      resize() {
+        const rect = this.region.getBoundingClientRect();
+        const dpr  = window.devicePixelRatio || 1;
+        this.width  = rect.width;
+        this.height = rect.height;
+        this.canvas.width  = this.width * dpr;
+        this.canvas.height = this.height * dpr;
+        this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      update(normX, normY) {
+        if (!this.enabled || !this.width || !this.height) return;
+
+        const margin = 4;
+        const cx = this.width / 2;
+        const cy = this.height / 2;
+        const maxX = (this.width / 2) - margin;
+        const maxY = (this.height / 2) - margin;
+
+        const px = cx + normX * maxX;
+        const py = cy + normY * maxY;
+
+        this.trail.unshift({ x: px, y: py });
+        if (this.trail.length > this.TRAIL_LENGTH) this.trail.pop();
+      }
+
+      draw() {
+        if (!this.width || !this.height) return;
+
+        this.ctx.clearRect(0, 0, this.width, this.height);
+        if (!this.enabled) return;
+
+        const spacing = 8;
+        this.ctx.save();
+        this.ctx.fillStyle = this.color;
+        this.ctx.globalAlpha = 0.16;
+        for (let y = 2; y < this.height; y += spacing) {
+          for (let x = 2; x < this.width; x += spacing) {
+            this.ctx.fillRect(x, y, 1.5, 1.5);
+          }
+        }
+        this.ctx.restore();
+
+        for (let i = 0; i < this.trail.length; i++) {
+          const t = this.trail[i];
+          const alpha = 1 - i / this.TRAIL_LENGTH;
+          const size = 5 - (i * 0.08);
+          const half = size / 2;
+
+          this.ctx.save();
+          this.ctx.globalAlpha = 0.22 + alpha * 0.6;
+          this.ctx.fillStyle = this.color;
+          this.ctx.fillRect(t.x - half, t.y - half, size, size);
+          this.ctx.restore();
+        }
+      }
+
+      renderLoop() {
+        this.draw();
+        requestAnimationFrame(() => this.renderLoop());
+      }
     }
-  }
 
-  function renderLoop() {
-    drawMotionGraph();
-    requestAnimationFrame(renderLoop);
-  }
+    // ---------- Main wiring ----------
 
-  /* SPEAKER TAP TOGGLE --------------------------------------------------- */
+    const screenUI    = new ScreenUI();
+    const graphUI     = new MotionGraphUI();
+    const sensorPanel = document.getElementById("sensorPanel");
+    const sensorBtn   = document.getElementById("sensorBtn");
+    const speakerEl   = document.getElementById("speaker");
+    const screenEl    = document.getElementById("screen");
 
-  function toggleMotionGraph() {
-    motionGraphEnabled = !motionGraphEnabled;
-    if (motionGraphEnabled) {
-      motionCanvas.classList.add("active");
-    } else {
-      motionCanvas.classList.remove("active");
-      trail = [];
-      motionCtx.clearRect(0, 0, graphWidth, graphHeight);
+    let motionState = {
+      motionX: 0,
+      motionY: 0,
+      normX: 0,
+      normY: 0,
+      mag: 0,
+      jitter: 0,
+      lastActiveTime: Date.now()
+    };
+
+    let audioState  = { level: 0 };
+    let currentEmoji = "😀";
+    let currentState = "rest";
+
+    let autoEnabled = false;
+    let lastInteraction = Date.now();
+    let lastChange = Date.now();
+    let holdMs = randomHoldDuration();
+
+    function randomHoldDuration() {
+      return 2000 + Math.random() * 28000;
     }
-  }
 
-  speakerEl.addEventListener("click", (e) => {
-    e.stopPropagation();
-    toggleMotionGraph();
-  });
+    const motionManager = new MotionManager((state) => {
+      motionState = state;
+      screenUI.updateMotionOffset(state.motionX, state.motionY);
+      graphUI.update(state.normX, state.normY);
+    });
 
-  speakerEl.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    toggleMotionGraph();
-  }, { passive: false });
+    const audioManager = new AudioManager((state) => {
+      audioState = state;
+      screenUI.updateAudioGlow(state.level);
+    });
 
-  window.addEventListener("resize", resizeMotionCanvas);
+    screenUI.onColorChange = () => {
+      const color = screenUI.getCurrentThemeLightColor();
+      graphUI.setColor(color);
+    };
 
-  /* SENSOR PANEL --------------------------------------------------------- */
+    screenUI.onInteraction = () => {
+      lastInteraction = Date.now();
+      autoEnabled = false;
+    };
 
-  sensorBtn.addEventListener("click", async () => {
-    await Promise.allSettled([enableMotion(), enableAudio()]);
-    sensorPanel.classList.add("hidden");
-  });
+    // Manual tap on screen => change emoji by context
+    screenEl.addEventListener("click", () => {
+      lastInteraction = Date.now();
+      autoEnabled = false;
+      changeEmojiFromContext(true);
+    });
 
-  /* STARTUP INIT --------------------------------------------------------- */
+    // Speaker => toggle graph
+    speakerEl.addEventListener("click", (e) => {
+      e.stopPropagation();
+      graphUI.toggle();
+    });
 
-  (function init() {
-    try {
-      const saved = localStorage.getItem("emojiBuddyColor");
-      if (saved) gbEl.setAttribute("data-color", saved);
-    } catch(_) {}
+    speakerEl.addEventListener("touchend", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      graphUI.toggle();
+    }, { passive: false });
 
-    applySize();
-    updateMotionGraphColor();
-    resizeMotionCanvas();
+    // Sensor panel allow
+    sensorBtn.addEventListener("click", async () => {
+      await Promise.allSettled([
+        motionManager.start(),
+        audioManager.start()
+      ]);
+      sensorPanel.classList.add("hidden");
+    });
 
-    // force centered starting position
-    document.documentElement.style.setProperty("--emoji-offset-x", "0px");
-    document.documentElement.style.setProperty("--emoji-offset-y", "0px");
+    function changeEmojiFromContext(force = false) {
+      const newState = classifyState(motionState, audioState);
+      const emoji = pickEmojiForState(newState, currentEmoji);
+      currentEmoji = emoji;
+      currentState = newState;
+      lastChange = Date.now();
+      holdMs = randomHoldDuration();
+      screenUI.setEmoji(emoji, newState);
+    }
 
-    // context-based emoji at startup (car likely at rest)
-    const initialState = classifyState();
-    const startEmoji = pickContextEmoji(initialState);
-    setEmoji(startEmoji, initialState);
+    function tick() {
+      const now = Date.now();
+      const idle = now - lastInteraction;
 
-    // boot sequence
-    screenEl.classList.add("boot-off");
-    screenEl.classList.add("boot-flash");
+      const newState = classifyState(motionState, audioState);
 
-    setTimeout(() => {
-      screenEl.classList.add("boot-on");
-      screenEl.classList.remove("boot-off");
+      const stateChanged = newState !== currentState;
+      const interestingStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
+      if (stateChanged && interestingStates.has(newState)) {
+        changeEmojiFromContext(true);
+      } else {
+        currentState = newState;
+      }
 
-      setTimeout(() => {
-        screenEl.classList.remove("boot-flash");
-      }, 600);
-    }, 260);
+      if (!autoEnabled && idle >= 10000) {
+        autoEnabled = true;
+        lastChange = now;
+        holdMs = randomHoldDuration();
+      }
 
-    renderLoop();
-  })();
+      if (autoEnabled && now - lastChange >= holdMs) {
+        changeEmojiFromContext();
+      }
+    }
 
-</script>
+    setInterval(tick, 400);
 
+    function init() {
+      screenUI.forceCenterEmoji();
+
+      const initState = classifyState(motionState, audioState);
+      const initEmoji = pickEmojiForState(initState, currentEmoji);
+      currentEmoji = initEmoji;
+      currentState = initState;
+      screenUI.setEmoji(initEmoji, initState);
+
+      const color = screenUI.getCurrentThemeLightColor();
+      graphUI.setColor(color);
+
+      screenUI.boot();
+    }
+
+    init();
+  </script>
 </body>
 </html>
