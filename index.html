@@ -306,7 +306,7 @@
       100% { transform: scale(1); }
     }
 
-    /* Hard-G stressed bounce */
+    /* Hard-G / incident bounce */
     .emoji-hard-g {
       animation: hardGBounce 360ms cubic-bezier(.34,1.56,.64,1), breathe 6s ease-in-out 360ms infinite;
     }
@@ -782,15 +782,28 @@
     const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
     const FAVORITE_BASELINE = "🙂";
 
-    // INCIDENT POOL: previous hardG + hype/cruise/etc merged
-    const EMOJI_HARD_G = [...new Set([
-      // original hard G
-      "😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺",
-      // hype/party faces
-      "🤩","🥳","😝","😜","🤪","😎","🤠","🎃",
-      // some calm / cruise faces mixed in for fun
-      "😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰",
-      "😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"
+    // HARD STRAIGHT-LINE G (accel / brake) — no heart-eyes here
+    const EMOJI_HARD_STRAIGHT = [...new Set([
+      "😤","😠","😡","🤬","😬","😮‍💨","🫨",
+      "😱","🤯","😳","😵","😵‍💫","🥵",
+      "😈","👿","👹","👺","💩",
+      "🤨","🧐","🤓","😐","😑","😶",
+      "😆","😅","😂","🤣","😛","😝","😜","🤪",
+      "😎","🤠","🫡","🤖","🎃"
+    ])];
+
+    // HARD CORNERING G — fun / spicy + hearts reserved for cornering
+    const EMOJI_HARD_CORNER = [...new Set([
+      // spicy / intense
+      "😤","😠","😡","🤬","😬","😮‍💨","🫨",
+      "😱","🤯","😳","😵","😵‍💫","🥵",
+      "😈","👿","👹","👺",
+      // hype / party
+      "🤩","🥳","😛","😝","😜","🤪","😎","🤠","🎃",
+      // hearts & cat hearts reserved here
+      "😍","🥰","😻","😺","😸","😹","😼","😽",
+      // a few calm / composed
+      "😌","☺️","😊","😇","🤗","🫡","🫠"
     ])];
 
     // spicy/intense faces we want mostly reserved for “hard” states
@@ -810,10 +823,14 @@
     const sessionSeen = new Set();
 
     // Motion-driven incident states (override baseline temporarily)
-    const incidentStates = new Set(["hardG", "roughRoad", "deepRest"]);
+    const incidentStates = new Set(["hardStraight", "hardCorner", "roughRoad", "deepRest"]);
 
     // Baseline persistence
     const BASELINE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
+
+    // Incident lock: keep same incident emoji/state for at least this long
+    const INCIDENT_LOCK_MS = 3000;
+    let incidentLockUntil = 0;
 
     let baseEmoji = null;
     let baseEmojiLastSet = 0;
@@ -824,7 +841,7 @@
 
     // --- State classification: motion only (audio ignored for state/emoji) ---
     function classifyState(motion, _audioIgnored) {
-      const { mag, jitter, lastActiveTime } = motion;
+      const { mag, jitter, lastActiveTime, motionX, motionY } = motion;
 
       const now = Date.now();
       const stillMs = now - lastActiveTime;
@@ -832,16 +849,31 @@
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && stillMs > 30000;
 
-      const isRoughRoad     = jitter > 0.25;
-      const isHardG         = mag > 0.40 || jitter > 0.50;
-      const isCornerCruise  = mag > 0.15 && mag <= 0.40 && jitter < 0.45;
+      // lateral vs longitudinal based on screen offsets
+      const lateral      = Math.abs(motionX || 0);
+      const longitudinal = Math.abs(motionY || 0);
+
+      // thresholds bumped up slightly (less twitchy) – mid-way between earlier versions
+      const isRoughRoad = jitter > 0.32;
+      const isHardCore  = mag > 0.48 || jitter > 0.56;
+      const isCornerCruise =
+        mag > 0.18 && mag <= 0.48 &&
+        jitter < 0.50 &&
+        lateral > longitudinal * 1.05;
 
       if (deepRestActive) return "deepRest";
 
-      if (isVeryStill)     return "rest";
-      if (isRoughRoad)     return "roughRoad";
-      if (isHardG)         return "hardG";
-      if (isCornerCruise)  return "cruise";
+      if (isVeryStill) return "rest";
+      if (isRoughRoad) return "roughRoad";
+
+      if (isHardCore) {
+        // Strong G event: split into straight-line vs cornering
+        const preferCorner = lateral > longitudinal * 1.10;
+        if (preferCorner) return "hardCorner";
+        return "hardStraight";
+      }
+
+      if (isCornerCruise) return "cruise";
 
       return "neutral";
     }
@@ -878,8 +910,11 @@
         case "rest":
           pool = EMOJI_CALM_REST;
           break;
-        case "hardG":
-          pool = EMOJI_HARD_G;
+        case "hardStraight":
+          pool = EMOJI_HARD_STRAIGHT;
+          break;
+        case "hardCorner":
+          pool = EMOJI_HARD_CORNER;
           break;
         case "roughRoad":
           pool = EMOJI_ROUGH_ROAD;
@@ -899,7 +934,7 @@
       } else if (state === "neutral") {
         chaosChance = 0.45;
       } else if (state !== "deepRest") {
-        // hardG / roughRoad still themed but with a little chaos
+        // hardStraight / hardCorner / roughRoad still themed but with a little chaos
         chaosChance = 0.25;
       }
 
@@ -1234,7 +1269,7 @@
         this.emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
         void this.emojiEl.offsetWidth;
 
-        if (state === "hardG" || state === "roughRoad") {
+        if (state === "hardStraight" || state === "hardCorner" || state === "roughRoad") {
           this.emojiEl.classList.add("emoji-hard-g");
         } else {
           this.emojiEl.classList.add("emoji-pop");
@@ -1480,32 +1515,55 @@
 
     function tick() {
       const now = Date.now();
-      const newState = classifyState(motionState, audioState);
-      updateStateDebug(newState);
+      const rawState = classifyState(motionState, audioState);
 
-      const wasIncident = incidentStates.has(currentState);
-      const isIncident  = incidentStates.has(newState);
+      const wasIncident   = incidentStates.has(currentState);
+      const rawIsIncident = incidentStates.has(rawState);
+      const inIncidentLock = wasIncident && now < incidentLockUntil;
 
       // mark baseline change as pending if 3 minutes elapsed
       if (baseEmoji && (now - baseEmojiLastSet > BASELINE_DURATION_MS)) {
         pendingBaselineChange = true;
       }
 
-      // --- Incident states (hardG / roughRoad / deepRest) ---
-      if (isIncident) {
-        if (!wasIncident || newState !== currentState || now - lastEventTime > 3000) {
-          const emoji = pickEmojiForState(newState, currentEmoji);
+      // --- Incident lock handling (Option B: corners > straight) ---
+      if (inIncidentLock) {
+        // Only allow upgrade: hardStraight -> hardCorner
+        if (currentState === "hardStraight" && rawState === "hardCorner") {
+          const emoji = pickEmojiForState("hardCorner", currentEmoji);
           currentEmoji = emoji;
-          screenUI.setEmoji(emoji, newState);
+          currentState = "hardCorner";
+          incidentLockUntil = now + INCIDENT_LOCK_MS;
           lastEventTime = now;
+
+          screenUI.setEmoji(emoji, currentState);
+          updateStateDebug(currentState);
+          return;
         }
-        currentState = newState;
-        return; // while in incidents we don't change baseline
+
+        // Otherwise respect the lock: keep current incident emoji/state
+        updateStateDebug(currentState);
+        return;
       }
 
-      // from here: calm / neutral (rest, cruise, neutral)
+      // --- No lock active ---
 
-      currentState = newState;
+      // New or ongoing incident → choose emoji + start 3s lock
+      if (rawIsIncident) {
+        const emoji = pickEmojiForState(rawState, currentEmoji);
+        currentEmoji = emoji;
+        currentState = rawState;
+        incidentLockUntil = now + INCIDENT_LOCK_MS;
+        lastEventTime = now;
+
+        screenUI.setEmoji(emoji, rawState);
+        updateStateDebug(rawState);
+        return;
+      }
+
+      // From here: calm / neutral (rest, cruise, neutral, etc.)
+      currentState = rawState;
+      updateStateDebug(rawState);
 
       // ensure we have a baseline
       if (!baseEmoji) {
@@ -1514,12 +1572,12 @@
         baseEmojiLastSet = now;
         pendingBaselineChange = false;
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, newState);
+        screenUI.setEmoji(baseEmoji, rawState);
         return;
       }
 
-      // leaving an incident → go back to baseline (which may or may not change)
-      if (wasIncident && !isIncident) {
+      // Leaving an incident after lock expired → go back to baseline (which may change)
+      if (wasIncident && !rawIsIncident) {
         if (pendingBaselineChange) {
           const newBaseline = pickBaselineEmoji(baseEmoji);
           baseEmoji = newBaseline;
@@ -1527,7 +1585,7 @@
           pendingBaselineChange = false;
         }
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, newState);
+        screenUI.setEmoji(baseEmoji, rawState);
         return;
       }
 
@@ -1542,7 +1600,7 @@
       // ensure displayed emoji is baseline
       if (currentEmoji !== baseEmoji) {
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, newState);
+        screenUI.setEmoji(baseEmoji, rawState);
       }
     }
 
