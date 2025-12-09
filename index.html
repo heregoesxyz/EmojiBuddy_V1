@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <title>Emoji Buddy · Opulent Hardware</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
   <!-- Brand font -->
-  <link href="https://fonts.googleapis.com/css2?family=Saira:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Saira:wght@500;600&display=swap" rel="stylesheet">
 
   <style>
     :root {
@@ -14,16 +14,11 @@
       --shell-dark: #2e1065;
       --shell-light: #7c3aed;
       --accent: #facc15;
-      --accent-soft: rgba(250, 204, 21, 0.12);
       --ring-soft: rgba(148, 163, 184, 0.16);
-      --bg: #020617;
-      --fg: #e5e7eb;
-      --fg-soft: #9ca3af;
-      --card: #020617;
-      --chip-bg: rgba(15, 23, 42, 0.9);
-      --success: #4ade80;
-      --warning: #fb923c;
-      --danger: #f97373;
+      --emoji-scale: 1;
+      --emoji-offset-x: 0px;
+      --emoji-offset-y: 0px;
+      --audio-glow: 0; /* 0–1 for LCD glow */
     }
 
     * {
@@ -33,670 +28,840 @@
     }
 
     html, body {
+      width: 100%;
       height: 100%;
+      background: radial-gradient(circle at top, #020617 0, #000 70%);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+      color: #e5e7eb;
+      overflow: hidden;
     }
 
     body {
-      font-family: "Saira", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      background: radial-gradient(circle at top, #1f2937 0, #020617 50%, #000 100%);
-      color: var(--fg);
       display: flex;
       align-items: center;
       justify-content: center;
-      padding: 16px;
     }
 
-    .opulent-shell {
+    .canvas {
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+    }
+
+    /* SHELL --------------------------------------------------------------- */
+
+    .gb-shell {
       position: relative;
-      width: 100%;
-      max-width: 420px;
-      border-radius: 28px;
-      padding: 20px 18px 18px;
+      width: min(420px, 96vw);
+      aspect-ratio: 3 / 4;
+      border-radius: 30px;
       background:
-        radial-gradient(circle at 0% 0%, rgba(248, 250, 252, 0.18), transparent 55%),
-        radial-gradient(circle at 100% 0%, rgba(52, 211, 153, 0.12), transparent 55%),
-        radial-gradient(circle at 0% 100%, rgba(56, 189, 248, 0.12), transparent 55%),
-        radial-gradient(circle at 100% 100%, rgba(251, 191, 36, 0.12), transparent 55%),
-        linear-gradient(135deg, #020617, #020617 35%, #020617 65%, #020617);
+        radial-gradient(circle at -10% -20%, rgba(255, 255, 255, 0.10), transparent 55%),
+        radial-gradient(circle at 110% 120%, rgba(15, 23, 42, 0.65), transparent 60%),
+        linear-gradient(135deg, var(--shell-main), var(--shell-dark));
       box-shadow:
-        0 20px 60px rgba(15, 23, 42, 0.9),
-        0 0 0 1px rgba(148, 163, 184, 0.3);
-      border: 1px solid rgba(148, 163, 184, 0.5);
-      overflow: hidden;
-      backdrop-filter: blur(26px);
-      transform-style: preserve-3d;
-      transition: transform 180ms ease-out, box-shadow 180ms ease-out;
+        0 0 0 1px rgba(15, 23, 42, 0.8),
+        0 24px 60px rgba(0, 0, 0, 0.95);
+      padding: 14px 14px 18px;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      row-gap: 10px;
+      position: relative;
     }
 
-    /* Light halo rings */
-    .opulent-shell::before,
-    .opulent-shell::after {
+    /* color themes */
+
+    .gb-shell[data-color="grape"] {
+      --shell-main: #4c1d95;
+      --shell-dark: #2e1065;
+      --shell-light: #7c3aed;
+      --accent: #facc15;
+      --ring-soft: rgba(196, 181, 253, 0.35);
+    }
+
+    .gb-shell[data-color="teal"] {
+      --shell-main: #0f766e;
+      --shell-dark: #115e59;
+      --shell-light: #2dd4bf;
+      --accent: #fbbf24;
+      --ring-soft: rgba(45, 212, 191, 0.35);
+    }
+
+    .gb-shell[data-color="kiwi"] {
+      --shell-main: #15803d;
+      --shell-dark: #14532d;
+      --shell-light: #4ade80;
+      --accent: #facc15;
+      --ring-soft: rgba(74, 222, 128, 0.35);
+    }
+
+    .gb-shell[data-color="berry"] {
+      --shell-main: #9f1239;
+      --shell-dark: #881337;
+      --shell-light: #fb7185;
+      --accent: #fbbf24;
+      --ring-soft: rgba(248, 113, 113, 0.35);
+    }
+
+    .gb-shell[data-color="smoke"] {
+      --shell-main: #374151;
+      --shell-dark: #111827;
+      --shell-light: #9ca3af;
+      --accent: #22c55e;
+      --ring-soft: rgba(148, 163, 184, 0.35);
+    }
+
+    .gb-shell[data-color="black"] {
+      --shell-main: #020617;
+      --shell-dark: #000000;
+      --shell-light: #4b5563;
+      --accent: #facc15;
+      --ring-soft: rgba(148, 163, 184, 0.4);
+    }
+
+    .gb-shell[data-color="beige"] {
+      --shell-main: #d9c9a3;
+      --shell-dark: #b7966b;
+      --shell-light: #f3e7c8;
+      --accent: #22c55e;
+      --ring-soft: rgba(150, 120, 80, 0.4);
+    }
+
+    .gb-shell::before {
       content: "";
       position: absolute;
-      inset: -40%;
+      inset: 0;
+      border-radius: inherit;
+      background: conic-gradient(
+        from 140deg,
+        var(--ring-soft),
+        rgba(31, 41, 55, 0.8),
+        rgba(15, 23, 42, 0.3),
+        var(--ring-soft)
+      );
+      mix-blend-mode: screen;
+      opacity: 0.6;
+      pointer-events: none;
+    }
+
+    .gb-shell::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      box-shadow: 0 0 42px rgba(15, 23, 42, 0.95) inset;
+      pointer-events: none;
+    }
+
+    /* TOP BAR ------------------------------------------------------------- */
+
+    .gb-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 2px;
+      position: relative;
+      z-index: 1;
+      font-family: "Saira", system-ui, -apple-system, BlinkMacSystemFont, "SF Pro Text",
+        "Segoe UI", sans-serif;
+    }
+
+    .gb-brand,
+    .gb-top-right {
+      font-family: "Saira", sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: rgba(0,0,0,0.85);
+      text-shadow:
+        0 0 3px rgba(255,255,255,0.30),
+        0 0 6px rgba(0,0,0,0.40);
+    }
+
+    .gb-brand {
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    .gb-top-right {
+      font-size: 11px;
+      font-weight: 500;
+    }
+
+    /* SCREEN -------------------------------------------------------------- */
+
+    .gb-screen-frame {
+      border-radius: 18px;
+      padding: 8px;
       background:
-        radial-gradient(circle at 0% 0%, rgba(129, 140, 248, 0.2), transparent 60%),
-        radial-gradient(circle at 100% 100%, rgba(251, 191, 36, 0.18), transparent 60%);
-      opacity: 0.4;
+        linear-gradient(145deg, rgba(15, 23, 42, 0.85), rgba(15, 23, 42, 0.95));
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.85),
+        0 10px 20px rgba(15, 23, 42, 0.9);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .gb-screen {
+      flex: 1;
+      margin-top: 2px;
+      border-radius: 18px;
+      background:
+        radial-gradient(circle at 50% 0%, rgba(248, 250, 252, 0.08), transparent 60%),
+        linear-gradient(180deg, #020617, #020617 60%, #020617);
+      box-shadow:
+        0 0 0 1px #020617,
+        0 0 45px rgba(15, 23, 42, 0.9) inset;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      overflow: hidden;
+      position: relative;
+      opacity: 1;
+      filter: brightness(1) blur(0);
+    }
+
+    .gb-screen::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(circle at 10% 0%, rgba(248, 250, 252, 0.18), transparent 70%);
+      opacity: 0.5;
       mix-blend-mode: screen;
       pointer-events: none;
     }
 
-    .opulent-shell::after {
-      inset: -30%;
-      background:
-        radial-gradient(circle at 0% 100%, rgba(45, 212, 191, 0.16), transparent 60%),
-        radial-gradient(circle at 100% 0%, rgba(248, 250, 252, 0.16), transparent 60%);
-      opacity: 0.5;
-    }
-
-    .shell-inner {
-      position: relative;
-      z-index: 1;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-    }
-
-    /* Header / title area */
-
-    .shell-top-row {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
-      margin-bottom: 2px;
-    }
-
-    .brand-pill {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(248, 250, 252, 0.94);
-      box-shadow:
-        0 12px 25px rgba(15, 23, 42, 0.55),
-        0 0 0 1px rgba(15, 23, 42, 0.54);
-    }
-
-    .brand-pill-emoji {
-      font-size: 18px;
-    }
-
-    .brand-pill-text-main {
-      font-weight: 700;
-      font-size: 11px;
-      letter-spacing: 0.18em;
-      text-transform: uppercase;
-      color: #020617; /* black-ish as requested */
-      white-space: nowrap;
-    }
-
-    .brand-pill-text-sub {
-      font-weight: 500;
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.14em;
-      color: #6b7280;
-      white-space: nowrap;
-    }
-
-    .status-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.86);
-      border: 1px solid rgba(148, 163, 184, 0.6);
-      box-shadow:
-        0 10px 22px rgba(15, 23, 42, 0.7),
-        0 0 0 1px rgba(15, 23, 42, 0.7);
-    }
-
-    .status-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 999px;
-      background: var(--success);
-      box-shadow: 0 0 14px rgba(74, 222, 128, 0.9);
-    }
-
-    .status-text-main {
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-      color: var(--fg);
-      white-space: nowrap;
-    }
-
-    .status-text-sub {
-      font-size: 10px;
-      color: var(--fg-soft);
-      white-space: nowrap;
-    }
-
-    .shell-title-block {
-      margin-top: 4px;
-    }
-
-    .shell-title {
-      font-size: 15px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: #e5e7eb;
-      text-shadow:
-        0 0 18px rgba(15, 23, 42, 0.9),
-        0 1px 0 rgba(15, 23, 42, 0.6);
-    }
-
-    .shell-subtitle {
-      margin-top: 2px;
-      font-size: 11px;
-      font-weight: 400;
-      color: var(--fg-soft);
-      text-shadow: 0 1px 2px rgba(15, 23, 42, 0.9);
-    }
-
-    /* Core emoji orb */
-
-    .emoji-zone {
-      margin-top: 8px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-    }
-
-    .emoji-orb {
-      position: relative;
-      width: 170px;
-      height: 170px;
-      border-radius: 999px;
-      background:
-        radial-gradient(circle at 30% 0%, rgba(248, 250, 252, 0.38), transparent 55%),
-        radial-gradient(circle at 100% 100%, rgba(250, 204, 21, 0.32), transparent 65%),
-        radial-gradient(circle at 0% 100%, rgba(56, 189, 248, 0.24), transparent 60%),
-        radial-gradient(circle at 100% 0%, rgba(129, 140, 248, 0.3), transparent 60%),
-        radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 1), rgba(15, 23, 42, 0.9) 55%, rgba(15, 23, 42, 0.7) 75%, transparent 90%);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      box-shadow:
-        0 24px 70px rgba(15, 23, 42, 1),
-        0 0 0 1px rgba(148, 163, 184, 0.9),
-        0 0 50px rgba(250, 204, 21, 0.35);
-      transform: translateZ(30px);
-      transition: transform 120ms ease-out, box-shadow 120ms ease-out;
-    }
-
-    .emoji-orb::before {
-      /* subtle highlight ring */
+    /* audio glow overlay */
+    .gb-screen::after {
       content: "";
       position: absolute;
-      inset: 11px;
-      border-radius: inherit;
-      border: 1px solid rgba(248, 250, 252, 0.35);
-      box-shadow:
-        0 10px 30px rgba(15, 23, 42, 0.85),
-        0 0 40px rgba(15, 23, 42, 1) inset;
+      inset: -12%;
+      background: radial-gradient(circle at 50% 0%, var(--shell-light), transparent 60%);
+      mix-blend-mode: screen;
+      opacity: var(--audio-glow);
       pointer-events: none;
+      transition: opacity 80ms linear;
     }
 
-    .emoji-orb .emoji-glyph {
-      font-size: 5.1rem; /* keep BIG emoji */
-      filter: drop-shadow(0 14px 18px rgba(15, 23, 42, 0.9));
-      transform: translateY(2px);
-      transition: transform 120ms ease-out;
+    .emoji-wrap {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      transform: translate3d(var(--emoji-offset-x), var(--emoji-offset-y), 0)
+                 scale(var(--emoji-scale));
+      transition: transform 80ms linear;
     }
 
-    /* Boot / console */
+    .emoji {
+      position: relative;
+      font-size: 180px;
+      line-height: 1;
+      filter: drop-shadow(0 0 10px rgba(15, 23, 42, 0.9));
+      transform-origin: center;
+      animation: breathe 6s ease-in-out infinite;
+    }
 
-    .console {
-      margin-top: 16px;
-      padding: 10px 10px 8px;
-      border-radius: 14px;
-      background: rgba(15, 23, 42, 0.88);
-      border: 1px solid rgba(148, 163, 184, 0.55);
+    @keyframes breathe {
+      0%   { transform: translateY(0); }
+      50%  { transform: translateY(-2px); }
+      100% { transform: translateY(0); }
+    }
+
+    .emoji-pop {
+      animation: emojiPop 260ms ease-out, breathe 6s ease-in-out 260ms infinite;
+    }
+
+    @keyframes emojiPop {
+      0%   { transform: scale(0.88); }
+      60%  { transform: scale(1.1); }
+      100% { transform: scale(1); }
+    }
+
+    /* BOTTOM CONTROLS ----------------------------------------------------- */
+
+    .gb-bottom {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .speaker {
+      display: grid;
+      grid-template-columns: repeat(3, 5px);
+      grid-auto-rows: 5px;
+      gap: 4px;
+      opacity: 0.6;
+      filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.5));
+    }
+
+    .speaker-dot {
+      width: 5px;
+      height: 5px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.9);
+    }
+
+    .color-strip {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .color-label {
+      font-family: "Saira", sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.75);
+      text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.35),
+        0 0 6px rgba(0, 0, 0, 0.45);
+    }
+
+    .color-swatches {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 6px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.92);
       box-shadow:
-        0 18px 40px rgba(15, 23, 42, 0.85),
-        0 0 0 1px rgba(15, 23, 42, 0.8);
-      font-family: "Saira", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      font-size: 11px;
-      color: #e5e7eb;
-      max-height: 110px;
+        0 8px 20px rgba(0, 0, 0, 0.8),
+        0 0 0 1px rgba(15, 23, 42, 0.9);
+    }
+
+    .color-swatch {
+      width: 16px;
+      height: 16px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.9);
+      cursor: pointer;
+      padding: 0;
+      outline: none;
+    }
+
+    .color-swatch[data-color="grape"] { background: linear-gradient(135deg,#7c3aed,#4c1d95); }
+    .color-swatch[data-color="teal"]  { background: linear-gradient(135deg,#2dd4bf,#0f766e); }
+    .color-swatch[data-color="kiwi"]  { background: linear-gradient(135deg,#4ade80,#15803d); }
+    .color-swatch[data-color="berry"] { background: linear-gradient(135deg,#fb7185,#9f1239); }
+    .color-swatch[data-color="smoke"] { background: linear-gradient(135deg,#9ca3af,#374151); }
+    .color-swatch[data-color="black"] { background: linear-gradient(135deg,#020617,#111827); }
+    .color-swatch[data-color="beige"] { background: linear-gradient(135deg,#f3e7c8,#b7966b); }
+
+    .status-strip {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-family: "Saira", sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.75);
+      text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.35),
+        0 0 6px rgba(0, 0, 0, 0.45);
+    }
+
+    .vibe-label {
+      opacity: 0.9;
+    }
+
+    .vibe-gauge {
+      width: 72px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.9);
+      background:
+        radial-gradient(circle at 0 50%, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1));
       overflow: hidden;
       position: relative;
     }
 
-    .console-lines {
-      white-space: pre-line;
-      line-height: 1.35;
-      overflow: hidden;
-    }
-
-    .console-line-success {
-      color: var(--success);
-    }
-
-    .console-line-warn {
-      color: var(--warning);
-    }
-
-    .console-line-muted {
-      color: var(--fg-soft);
-    }
-
-    .console-fade {
+    .vibe-fill {
       position: absolute;
-      inset: auto 0 0 0;
-      height: 40px;
-      background: linear-gradient(to bottom, transparent, rgba(15, 23, 42, 1));
-      pointer-events: none;
+      inset: 0;
+      transform-origin: left center;
+      transform: scaleX(0.5);
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22c55e, #facc15, #f97316);
+      box-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
+      transition: transform 260ms ease-out;
     }
 
-    /* Controls */
+    /* SIZE DIAL ----------------------------------------------------------- */
 
-    .controls-row {
-      margin-top: 12px;
+    .size-strip {
       display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
-      justify-content: space-between;
-      align-items: center;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-family: "Saira", sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.75);
+      text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.35),
+        0 0 6px rgba(0, 0, 0, 0.45);
     }
+
+    .size-dial-wrap {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .size-dial {
+      width: 22px;
+      height: 22px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 30% 20%, rgba(248, 250, 252, 0.25), transparent 60%),
+        linear-gradient(145deg, #111827, #020617);
+      box-shadow:
+        0 0 0 1px rgba(15, 23, 42, 0.95),
+        0 3px 6px rgba(0, 0, 0, 0.8);
+      position: relative;
+      cursor: pointer;
+      transition: box-shadow 120ms ease-out, transform 120ms ease-out;
+    }
+
+    .size-dial-notch {
+      position: absolute;
+      top: 2px;
+      left: 50%;
+      width: 2px;
+      height: 8px;
+      border-radius: 999px;
+      background: #f9fafb;
+      transform: translateX(-50%);
+      box-shadow: 0 0 4px rgba(248, 250, 252, 0.8);
+    }
+
+    .size-dial-label {
+      font-size: 8px;
+    }
+
+    .wobble {
+      animation: wobble 520ms ease-in-out;
+    }
+
+    @keyframes wobble {
+      0%   { transform: translateX(0) rotate(0deg); }
+      20%  { transform: translateX(-2px) rotate(-0.45deg); }
+      40%  { transform: translateX(3px) rotate(0.45deg); }
+      65%  { transform: translateX(-1.5px) rotate(-0.25deg); }
+      100% { transform: translateX(0) rotate(0deg); }
+    }
+
+    /* STARTUP BOOT SEQUENCE ----------------------------------------------- */
+
+    .gb-screen.boot-off {
+      opacity: 0;
+      filter: brightness(0) blur(6px);
+    }
+
+    .gb-screen.boot-on {
+      animation: bootOn 1200ms ease-out forwards;
+    }
+
+    @keyframes bootOn {
+      0% {
+        opacity: 0;
+        filter: brightness(0) blur(8px);
+      }
+      20% {
+        opacity: 0.25;
+        filter: brightness(0.3) blur(4px);
+      }
+      55% {
+        opacity: 0.65;
+        filter: brightness(1.6) blur(1px);
+      }
+      75% {
+        opacity: 1;
+        filter: brightness(1.15) blur(0px);
+      }
+      100% {
+        opacity: 1;
+        filter: brightness(1) blur(0px);
+      }
+    }
+
+    .boot-flash::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: white;
+      opacity: 0;
+      pointer-events: none;
+      animation: bootFlash 520ms ease-out;
+    }
+
+    @keyframes bootFlash {
+      0% { opacity: 0; }
+      15% { opacity: 0.35; }
+      35% { opacity: 0.15; }
+      55% { opacity: 0.08; }
+      100% { opacity: 0; }
+    }
+
+    /* SENSOR ENABLE BUTTON ------------------------------------------------ */
 
     .sensor-btn {
-      flex: 1 1 48%;
-      min-width: 0;
-      padding: 8px 10px;
+      position: fixed;
+      inset: auto 50% 18px 50%;
+      transform: translateX(-50%);
+      padding: 10px 16px;
       border-radius: 999px;
-      border: 1px solid rgba(148, 163, 184, 0.6);
-      background: rgba(15, 23, 42, 0.9);
+      border: 1px solid rgba(15, 23, 42, 0.7);
+      background: rgba(15, 23, 42, 0.96);
       color: #e5e7eb;
       font-size: 11px;
-      font-weight: 500;
       letter-spacing: 0.12em;
       text-transform: uppercase;
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 6px;
+      font-family: "Saira", sans-serif;
       cursor: pointer;
       box-shadow:
-        0 14px 30px rgba(15, 23, 42, 0.9),
-        0 0 0 1px rgba(15, 23, 42, 0.9);
-      transition: transform 110ms ease-out, box-shadow 110ms ease-out, border-color 110ms ease-out, background 110ms ease-out;
+        0 10px 26px rgba(0,0,0,0.85),
+        0 0 0 1px rgba(15,23,42,0.8);
+      z-index: 20;
     }
 
-    .sensor-btn span.icon {
-      font-size: 13px;
+    .sensor-btn.hidden {
+      display: none;
     }
 
-    .sensor-btn:active {
-      transform: translateY(1px) scale(0.99);
-      box-shadow:
-        0 8px 16px rgba(15, 23, 42, 0.9),
-        0 0 0 1px rgba(15, 23, 42, 1);
-    }
-
-    .sensor-btn.enabled {
-      border-color: var(--accent);
-      background: radial-gradient(circle at 0 0, rgba(250, 204, 21, 0.32), rgba(15, 23, 42, 1));
-      box-shadow:
-        0 16px 40px rgba(15, 23, 42, 1),
-        0 0 30px rgba(250, 204, 21, 0.45);
-    }
-
-    .tiny-label {
-      flex: 1 1 100%;
-      font-size: 10px;
-      color: var(--fg-soft);
-      margin-top: 2px;
-      text-align: right;
-    }
-
-    /* Footer strip */
-
-    .footer-strip {
-      margin-top: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 8px;
-      font-size: 9px;
-      color: var(--fg-soft);
-      text-transform: uppercase;
-      letter-spacing: 0.16em;
-    }
-
-    .footer-strip span {
-      white-space: nowrap;
-    }
-
-    .footer-divider {
-      flex: 1;
-      height: 1px;
-      background: linear-gradient(
-        to right,
-        transparent,
-        rgba(148, 163, 184, 0.6),
-        transparent
-      );
-    }
-
-    @media (max-width: 380px) {
-      .emoji-orb {
-        width: 150px;
-        height: 150px;
-      }
-
-      .emoji-orb .emoji-glyph {
-        font-size: 4.4rem;
-      }
-
-      .shell-title {
-        font-size: 14px;
-      }
-
-      .shell-subtitle {
-        font-size: 10px;
-      }
-
-      .sensor-btn {
-        font-size: 10px;
-      }
-    }
   </style>
 </head>
+
 <body>
-  <div class="opulent-shell" id="opulentShell">
-    <div class="shell-inner">
-      <div class="shell-top-row">
-        <div class="brand-pill">
-          <span class="brand-pill-emoji" id="brandEmoji">✨</span>
-          <div>
-            <div class="brand-pill-text-main">OPULENT HARDWARE</div>
-            <div class="brand-pill-text-sub">emoji buddy</div>
+  <button class="sensor-btn" id="sensorBtn">
+    Enable Motion &amp; Mic
+  </button>
+
+  <div class="canvas">
+    <div class="gb-shell" id="gb" data-color="grape">
+
+      <div class="gb-top">
+        <div class="gb-brand">Emoji Buddy</div>
+        <div class="gb-top-right">Opulent Hardware</div>
+      </div>
+
+      <div class="gb-screen-frame">
+        <div class="gb-screen boot-off boot-flash" id="screen">
+          <div class="emoji-wrap" id="emojiWrap">
+            <div class="emoji" id="emoji">😀</div>
           </div>
         </div>
-        <div class="status-chip">
-          <div class="status-dot"></div>
-          <div>
-            <div class="status-text-main">Live</div>
-            <div class="status-text-sub" id="statusSub">Booting…</div>
+      </div>
+
+      <div class="gb-bottom">
+
+        <div class="speaker">
+          <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
+          <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
+          <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
+        </div>
+
+        <div class="color-strip">
+          <span class="color-label">Color</span>
+          <div class="color-swatches" id="colorMenu">
+            <button class="color-swatch" data-color="grape"></button>
+            <button class="color-swatch" data-color="teal"></button>
+            <button class="color-swatch" data-color="kiwi"></button>
+            <button class="color-swatch" data-color="berry"></button>
+            <button class="color-swatch" data-color="smoke"></button>
+            <button class="color-swatch" data-color="black"></button>
+            <button class="color-swatch" data-color="beige"></button>
           </div>
         </div>
-      </div>
 
-      <div class="shell-title-block">
-        <div class="shell-title">Ambient Reaction Engine</div>
-        <div class="shell-subtitle">Listens, tilts &amp; vibes with your world.</div>
-      </div>
-
-      <div class="emoji-zone">
-        <div class="emoji-orb" id="emojiOrb">
-          <div class="emoji-glyph" id="coreEmoji">💫</div>
+        <div class="size-strip">
+          <span class="size-dial-label">Size</span>
+          <div class="size-dial-wrap">
+            <div class="size-dial" id="sizeDial">
+              <div class="size-dial-notch"></div>
+            </div>
+          </div>
         </div>
-      </div>
 
-      <div class="console">
-        <div class="console-lines" id="consoleLines"></div>
-        <div class="console-fade"></div>
-      </div>
-
-      <div class="controls-row">
-        <button id="enableMotionBtn" class="sensor-btn">
-          <span class="icon">📱</span>
-          <span>Enable Motion</span>
-        </button>
-        <button id="enableAudioBtn" class="sensor-btn">
-          <span class="icon">🎤</span>
-          <span>Enable Sound</span>
-        </button>
-        <div class="tiny-label">
-          Permissions are handled on your device. No audio is stored.
+        <div class="status-strip">
+          <div class="vibe-label">Vibes</div>
+          <div class="vibe-gauge">
+            <div class="vibe-fill" id="vibeFill"></div>
+          </div>
         </div>
-      </div>
 
-      <div class="footer-strip">
-        <span>v0.1 · Device React</span>
-        <div class="footer-divider"></div>
-        <span>XE / Mobile sandbox</span>
       </div>
     </div>
   </div>
 
-  <script>
-    // ========================
-    // Random emoji + boot seq
-    // ========================
+<script>
+  const emojiList = [
+    "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌",
+    "😍","🥰","😘","😗","😙","😚","😋","😛","😝","😜","🤪","🤨","🧐","🤓","😎","🥸","🤩",
+    "🥳","🙂‍↕️","😏","😒","🙂‍↔️","😞","😔","😟","😕","🙁","☹️","😣","😖","😫","😩","🥺",
+    "😢","😭","😮‍💨","😤","😠","😡","🤬","🤯","😳","🥵","🥶","😱","😨","😰","😥","😓","🫣",
+    "🤗","🫡","🤔","🫢","🤭","🤫","🤥","😶","😶‍🌫️","😐","😑","😬","🫨","🫠","🙄","😯","😦",
+    "😧","😮","😲","🥱","😴","🫩","🤤","😪","😵","😵‍💫","🫥","🤐","🥴","🤢","🤮","🤧","😷",
+    "🤒","🤕","🤑","🤠","😈","👿","👹","👺","🤡","💩","👻","💀","☠️","👽","👾","🤖","🎃",
+    "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
+  ];
 
-    const emojiList = [
-      "😎", "🤖", "💫", "✨", "🔥", "🚗", "🚀", "🌊", "🎧", "😺",
-      "🐾", "🌙", "🍀", "🧠", "💎", "🎮", "🏁", "⚡", "🌀", "🌈"
-    ];
+  const gbEl        = document.getElementById("gb");
+  const screenEl    = document.getElementById("screen");
+  const emojiEl     = document.getElementById("emoji");
+  const vibeFillEl  = document.getElementById("vibeFill");
+  const colorMenu   = document.getElementById("colorMenu");
+  const sizeDial    = document.getElementById("sizeDial");
+  const sensorBtn   = document.getElementById("sensorBtn");
 
-    const bootLines = [
-      { text: "[ OH·BOOT ] Initializing Emoji Buddy runtime…", cls: "console-line-muted" },
-      { text: "[ SENSOR ] Probing motion matrix… OK", cls: "console-line-success" },
-      { text: "[ SENSOR ] Probing audio surface… READY (on tap)", cls: "console-line-success" },
-      { text: "[ PROFILE ] Loading opulent personality pack…", cls: "console-line-muted" },
-      { text: "[ EMOJI ] Assigning session glyph…", cls: "console-line-muted" },
-      { text: "[ STATUS ] All systems nominal. Have fun. ✨", cls: "console-line-success" }
-    ];
+  let currentEmoji    = "😀";
+  let lastInteraction = Date.now();
+  let lastChange      = Date.now();
+  let autoEnabled     = false;
+  let holdMs          = randomHoldDuration();
 
-    const consoleEl = document.getElementById("consoleLines");
-    const coreEmojiEl = document.getElementById("coreEmoji");
-    const brandEmojiEl = document.getElementById("brandEmoji");
-    const statusSubEl = document.getElementById("statusSub");
+  const sizeLevels = [0.85, 1.0, 1.2];
+  const sizeAngles = [-20, 0, 20];
+  let sizeIndex    = 1;
 
-    function pickRandomEmoji() {
-      const idx = Math.floor(Math.random() * emojiList.length);
-      return emojiList[idx];
+  // motion state
+  let motionX = 0, motionY = 0;
+
+  function randomHoldDuration() {
+    return 2000 + Math.random() * 28000;
+  }
+
+  function randomEmoji() {
+    return emojiList[Math.floor(Math.random() * emojiList.length)];
+  }
+
+  function markInteraction() {
+    lastInteraction = Date.now();
+    autoEnabled = false;
+  }
+
+  function setEmoji(e) {
+    if (!e) return;
+    currentEmoji = e;
+    emojiEl.textContent = e;
+
+    emojiEl.classList.remove("emoji-pop");
+    void emojiEl.offsetWidth;
+    emojiEl.classList.add("emoji-pop");
+
+    gbEl.classList.remove("wobble");
+    void gbEl.offsetWidth;
+    gbEl.classList.add("wobble");
+
+    adjustVibeGauge(e);
+  }
+
+  function adjustVibeGauge(e) {
+    let level = 0.5;
+
+    const happySet = "😀😃😄😁😆😅😂🤣☺️😊😇🙂😉😌😍🥰😘😗😙😚😋😛😝😜🤪😎🤩🥳🤗🤠😺😸😹😻😼😽";
+    const lowSet   = "😞😔😟😕🙁☹️😣😖😫😩🥺😢😭😮‍💨😤😠😡🤬😳😰😥😓😿😾";
+    const hotSet   = "🥵🤯😱😨😵😵‍💫";
+    const sickSet  = "🤢🤮🤧😷🤒🤕🥴";
+
+    if (happySet.includes(e)) level = 0.82;
+    else if (hotSet.includes(e)) level = 1.0;
+    else if (sickSet.includes(e)) level = 0.3;
+    else if (lowSet.includes(e)) level = 0.2;
+    else level = 0.55;
+
+    vibeFillEl.style.transform = `scaleX(${level})`;
+  }
+
+  function nextRandomEmoji() {
+    let next = randomEmoji();
+    if (emojiList.length > 1 && next === currentEmoji)
+      next = randomEmoji();
+    setEmoji(next);
+  }
+
+  function tick() {
+    const now = Date.now();
+    const idle = now - lastInteraction;
+
+    if (!autoEnabled && idle >= 10000) {
+      autoEnabled = true;
+      lastChange = now;
+      holdMs = randomHoldDuration();
     }
 
-    async function runBootSequence() {
-      consoleEl.innerHTML = "";
-      statusSubEl.textContent = "Booting…";
-
-      const sessionEmoji = pickRandomEmoji();
-      coreEmojiEl.textContent = sessionEmoji;
-      brandEmojiEl.textContent = sessionEmoji;
-
-      for (let i = 0; i < bootLines.length; i++) {
-        const lineInfo = bootLines[i];
-        const line = document.createElement("div");
-        line.textContent = lineInfo.text;
-        if (lineInfo.cls) line.classList.add(lineInfo.cls);
-        consoleEl.appendChild(line);
-
-        consoleEl.scrollTop = consoleEl.scrollHeight;
-
-        await new Promise(res => setTimeout(res, i === bootLines.length - 1 ? 650 : 340));
-      }
-
-      statusSubEl.textContent = "Idle · Tap to react";
+    if (autoEnabled && now - lastChange >= holdMs) {
+      nextRandomEmoji();
+      lastChange = now;
+      holdMs = randomHoldDuration();
     }
+  }
 
-    document.addEventListener("DOMContentLoaded", () => {
-      runBootSequence();
-    });
+  setInterval(tick, 500);
 
-    // ========================
-    // Motion (gyro / tilt)
-    // ========================
+  colorMenu.addEventListener("click", e => {
+    const target = e.target.closest(".color-swatch");
+    if (!target) return;
+    const color = target.dataset.color;
+    gbEl.setAttribute("data-color", color);
+    markInteraction();
+    try { localStorage.setItem("emojiBuddyColor", color); } catch(_) {}
+  });
 
-    const opulentShell = document.getElementById("opulentShell");
-    const emojiOrb = document.getElementById("emojiOrb");
-    const motionBtn = document.getElementById("enableMotionBtn");
+  function applySize() {
+    const scale = sizeLevels[sizeIndex];
+    document.documentElement.style.setProperty("--emoji-scale", scale);
+    sizeDial.style.transform = `rotate(${sizeAngles[sizeIndex]}deg)`;
+  }
 
-    let motionEnabled = false;
-    let motionListenerAttached = false;
+  sizeDial.addEventListener("click", () => {
+    sizeIndex = (sizeIndex + 1) % sizeLevels.length;
+    applySize();
+    markInteraction();
+  });
 
-    async function enableMotion() {
+  screenEl.addEventListener("click", () => {
+    markInteraction();
+    nextRandomEmoji();
+  });
+
+  /* MOTION HANDLING ------------------------------------------------------ */
+
+  function handleMotion(event) {
+    const acc = event.accelerationIncludingGravity;
+    if (!acc) return;
+
+    const ax = acc.x || 0; // left-right
+    const ay = acc.y || 0; // up-down / front-back depending on orientation
+
+    const sensitivity = 2.4;    // px per m/s^2
+    const maxOffset   = 18;     // clamp in px
+
+    let targetX = -ax * sensitivity; // push opposite direction of G-force
+    let targetY = ay * sensitivity;
+
+    targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
+    targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
+
+    const alpha = 0.15; // smoothing
+    motionX = motionX + alpha * (targetX - motionX);
+    motionY = motionY + alpha * (targetY - motionY);
+
+    document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
+    document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
+  }
+
+  async function enableMotion() {
+    if (typeof DeviceMotionEvent !== "undefined" &&
+        typeof DeviceMotionEvent.requestPermission === "function") {
       try {
-        // iOS 13+ permission gate
-        if (typeof DeviceMotionEvent !== "undefined" &&
-            typeof DeviceMotionEvent.requestPermission === "function") {
-          const permission = await DeviceMotionEvent.requestPermission();
-          if (permission !== "granted") {
-            statusSubEl.textContent = "Motion blocked";
-            return;
-          }
-        }
-
-        if (!motionListenerAttached) {
-          window.addEventListener("deviceorientation", handleOrientation);
-          motionListenerAttached = true;
-        }
-
-        motionEnabled = true;
-        motionBtn.classList.add("enabled");
-        statusSubEl.textContent = "Motion · ON";
-      } catch (e) {
-        console.error("Motion permission error", e);
-        statusSubEl.textContent = "Motion error";
-      }
-    }
-
-    function handleOrientation(event) {
-      if (!motionEnabled) return;
-      const { beta, gamma } = event; // beta: front/back, gamma: left/right
-
-      const tiltX = (gamma || 0) / 6; // softer
-      const tiltY = -(beta || 0) / 8;
-
-      if (opulentShell) {
-        opulentShell.style.transform = `
-          perspective(900px)
-          rotateY(${tiltX}deg)
-          rotateX(${tiltY}deg)
-        `;
-      }
-
-      if (emojiOrb) {
-        emojiOrb.style.transform = `
-          translateZ(30px)
-          rotateY(${tiltX * 0.7}deg)
-          rotateX(${tiltY * 0.7}deg)
-        `;
-      }
-    }
-
-    motionBtn.addEventListener("click", enableMotion);
-
-    // ========================
-    // Audio-reactive pulse
-    // ========================
-
-    const audioBtn = document.getElementById("enableAudioBtn");
-    let audioContext;
-    let analyser;
-    let dataArray;
-    let audioAnimId = null;
-    let audioEnabled = false;
-
-    async function enableAudioReact() {
-      if (audioEnabled) {
-        // toggle OFF
-        audioEnabled = false;
-        audioBtn.classList.remove("enabled");
-        statusSubEl.textContent = "Sound · OFF";
-        if (audioAnimId) cancelAnimationFrame(audioAnimId);
-        if (emojiOrb) {
-          emojiOrb.style.boxShadow =
-            "0 24px 70px rgba(15, 23, 42, 1), 0 0 0 1px rgba(148, 163, 184, 0.9), 0 0 50px rgba(250, 204, 21, 0.35)";
-        }
+        const response = await DeviceMotionEvent.requestPermission();
+        if (response !== "granted") return;
+      } catch (err) {
+        console.warn("Motion permission error:", err);
         return;
       }
+    }
+    window.addEventListener("devicemotion", handleMotion, true);
+  }
 
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+  /* AUDIO (MIC) HANDLING ------------------------------------------------- */
 
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        const source = audioContext.createMediaStreamSource(stream);
-        analyser = audioContext.createAnalyser();
-        analyser.fftSize = 1024;
-        dataArray = new Uint8Array(analyser.frequencyBinCount);
-        source.connect(analyser);
-
-        audioEnabled = true;
-        audioBtn.classList.add("enabled");
-        statusSubEl.textContent = "Sound · Listening";
-
-        startAudioLoop();
-      } catch (err) {
-        console.error("Mic error:", err);
-        statusSubEl.textContent = "Mic blocked";
-      }
+  async function enableAudio() {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      console.warn("getUserMedia not supported");
+      return;
     }
 
-    function startAudioLoop() {
-      function render() {
-        if (!audioEnabled || !analyser) return;
-        analyser.getByteTimeDomainData(dataArray);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      const source = audioCtx.createMediaStreamSource(stream);
+      const analyser = audioCtx.createAnalyser();
+      analyser.fftSize = 1024;
+      const data = new Uint8Array(analyser.frequencyBinCount);
+      source.connect(analyser);
 
-        // Simple RMS (volume) calculation
+      function audioLoop() {
+        analyser.getByteTimeDomainData(data);
         let sum = 0;
-        for (let i = 0; i < dataArray.length; i++) {
-          const v = (dataArray[i] - 128) / 128;
+        for (let i = 0; i < data.length; i++) {
+          const v = (data[i] - 128) / 128;
           sum += v * v;
         }
-        const rms = Math.sqrt(sum / dataArray.length); // ~0–0.5
+        const rms = Math.sqrt(sum / data.length); // ~0-1
+        let level = Math.min(1, rms * 8);        // boost sensitivity a bit
 
-        // Map RMS to a scale + glow
-        const scale = 1 + rms * 0.9;
-        const glow = Math.min(60, rms * 420);
+        // LCD glow amount
+        document.documentElement.style.setProperty("--audio-glow", (level * 0.8).toFixed(3));
 
-        if (emojiOrb) {
-          emojiOrb.style.transform = `
-            translateZ(30px)
-            scale(${scale})
-          `;
-          emojiOrb.style.boxShadow =
-            `0 24px 70px rgba(15, 23, 42, 1),
-             0 0 0 1px rgba(148, 163, 184, 0.9),
-             0 0 ${glow}px rgba(250, 204, 21, 0.7)`;
-        }
+        // Vibes glow pulse
+        const extra = 10 + level * 24; // base 10px to ~34px
+        vibeFillEl.style.boxShadow = `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.95)`;
 
-        audioAnimId = requestAnimationFrame(render);
+        requestAnimationFrame(audioLoop);
       }
 
-      render();
+      audioLoop();
+    } catch (err) {
+      console.warn("Audio permission error:", err);
     }
+  }
 
-    audioBtn.addEventListener("click", enableAudioReact);
+  /* SENSOR BUTTON -------------------------------------------------------- */
 
-    // ========================
-    // Subtle interaction states
-    // ========================
+  sensorBtn.addEventListener("click", async () => {
+    await Promise.allSettled([enableMotion(), enableAudio()]);
+    sensorBtn.classList.add("hidden");
+  });
 
-    // Small "tap" bounce
-    emojiOrb.addEventListener("click", () => {
-      emojiOrb.style.transform += " scale(1.06)";
+  /* STARTUP INIT --------------------------------------------------------- */
+
+  (function init() {
+    try {
+      const saved = localStorage.getItem("emojiBuddyColor");
+      if (saved) gbEl.setAttribute("data-color", saved);
+    } catch(_) {}
+
+    applySize();
+
+    // random emoji at startup
+    const startEmoji = randomEmoji();
+    currentEmoji = startEmoji;
+    emojiEl.textContent = startEmoji;
+    adjustVibeGauge(startEmoji);
+
+    // boot sequence
+    screenEl.classList.add("boot-off");
+    screenEl.classList.add("boot-flash");
+
+    setTimeout(() => {
+      screenEl.classList.add("boot-on");
+      screenEl.classList.remove("boot-off");
+
       setTimeout(() => {
-        emojiOrb.style.transform = emojiOrb.style.transform.replace(" scale(1.06)", "");
-      }, 110);
+        screenEl.classList.remove("boot-flash");
+      }, 600);
+    }, 260);
+  })();
 
-      // change emoji on tap
-      const newEmoji = pickRandomEmoji();
-      coreEmojiEl.textContent = newEmoji;
-      brandEmojiEl.textContent = newEmoji;
-      statusSubEl.textContent = "Emoji swapped";
-      setTimeout(() => {
-        if (!audioEnabled && !motionEnabled) {
-          statusSubEl.textContent = "Idle · Tap to react";
-        } else if (audioEnabled && motionEnabled) {
-          statusSubEl.textContent = "Motion+Sound · ON";
-        } else if (audioEnabled) {
-          statusSubEl.textContent = "Sound · Listening";
-        } else if (motionEnabled) {
-          statusSubEl.textContent = "Motion · ON";
-        }
-      }, 1000);
-    });
-  </script>
+</script>
+
 </body>
 </html>
