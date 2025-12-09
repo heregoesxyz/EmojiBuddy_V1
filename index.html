@@ -716,12 +716,24 @@
     const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
     const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠","🎃"];
 
-    // recent-emoji buffer to avoid repetition
+    // spicy/intense faces we want mostly reserved for “hard” states
+    const EMOJI_SPICY = new Set([
+      "😈","👿","🤬","😡","😠","💩","🤯","😱","😳","🤮","🤢","🥵","👹","👺"
+    ]);
+
+    // Safe chaos pool = everything except spicy
+    const SAFE_CHAOS_POOL = EMOJI_ALL.filter(e => !EMOJI_SPICY.has(e));
+
+    // recent-emoji buffer to avoid immediate repeats
     const RECENT_MAX = 8;
     const recentEmojis = [];
 
+    // session coverage: try to see many unique emojis per drive
+    const SESSION_COVERAGE_TARGET = 40;
+    const sessionSeen = new Set();
+
     function classifyState(motion, audio) {
-      const { mag, jitter, lastActiveTime } = motion; // mag ~ dynamic level (0–1), jitter ~ volatility
+      const { mag, jitter, lastActiveTime } = motion;
       const level = audio.level ?? 0;
 
       const now = Date.now();
@@ -730,7 +742,7 @@
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && level < 0.08 && stillMs > 30000;
 
-      // Emphasize change (jitter) more than absolute magnitude
+      // emphasize change (jitter) more than absolute magnitude
       const isRoughRoad  = jitter > 0.45;
       const isHardG      = mag > 0.75 || jitter > 0.7;
       const isCornerCruise = mag > 0.25 && mag <= 0.75 && jitter < 0.7;
@@ -792,28 +804,60 @@
           break;
       }
 
-      // Mix in global pool sometimes so calm states don't feel stale
-      const allowChaos = (state !== "deepRest");
-      if (allowChaos && Math.random() < 0.35) {
-        pool = EMOJI_ALL;
+      // --- CHAOS VARIETY WITHOUT UNLOCKING SPICY IN CALM STATES ---
+      let chaosChance = 0.0;
+
+      if (state === "rest" || state === "cruise" || state === "calmMusic") {
+        // calm / cruising → lots of variety from SAFE pool
+        chaosChance = 0.65;
+      } else if (state === "hypeMusic" || state === "neutral") {
+        chaosChance = 0.45;
+      } else if (state !== "deepRest") {
+        // hardG / roughRoad still themed but with a little chaos
+        chaosChance = 0.25;
       }
 
-      let next = randomEmojiFrom(pool);
+      const intenseStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
 
-      // avoid repeating the last one or very recent ones when we have enough choices
+      if (chaosChance > 0 && Math.random() < chaosChance) {
+        if (intenseStates.has(state)) {
+          // intense state can sample from full pool (spicy allowed)
+          pool = EMOJI_ALL;
+        } else {
+          // calm/normal chaos uses only safe faces
+          pool = SAFE_CHAOS_POOL;
+        }
+      }
+
+      // --- SESSION COVERAGE: prefer emojis not yet used this drive ---
+      let candidatePool = pool;
+
+      if (sessionSeen.size < SESSION_COVERAGE_TARGET) {
+        const unseen = pool.filter(e => !sessionSeen.has(e));
+        if (unseen.length > 0) {
+          candidatePool = unseen;
+        }
+      }
+
+      let next = randomEmojiFrom(candidatePool);
+
+      // avoid repeating last or very recent emojis
       let attempts = 0;
       while (
-        pool.length > 1 &&
+        candidatePool.length > 1 &&
         (next === prevEmoji || recentEmojis.includes(next)) &&
         attempts < 12
       ) {
-        next = randomEmojiFrom(pool);
+        next = randomEmojiFrom(candidatePool);
         attempts++;
       }
 
       // update recent history
       recentEmojis.unshift(next);
       if (recentEmojis.length > RECENT_MAX) recentEmojis.pop();
+
+      // update session coverage
+      sessionSeen.add(next);
 
       return next;
     }
@@ -847,7 +891,7 @@
         this.motionJitter = 0;
         this.lastActiveTime = Date.now();
 
-        // baseline (zero) for mounted orientation, adapts over time
+        // baseline orientation, adapts slowly to "normal chaos"
         this.baseX = 0;
         this.baseY = 0;
         this.baseZ = 0;
@@ -891,7 +935,7 @@
           this.baselineInitialized = true;
         }
 
-        // Change between readings (we care about magnitude of change)
+        // how much raw acceleration changed since last frame
         const dX = rawX - this.prevRawX;
         const dY = rawY - this.prevRawY;
         const dZ = rawZ - this.prevRawZ;
@@ -901,20 +945,18 @@
         this.prevRawY = rawY;
         this.prevRawZ = rawZ;
 
-        // Slowly adapt baseline when things are relatively calm:
-        // "getting used to" a new orientation / chaos
+        // slowly adapt baseline when changes are small
         const deltaThreshold = 0.35;
         if (rawDelta < deltaThreshold) {
-          const beta = 0.02; // how quickly baseline drifts
+          const beta = 0.02;
           this.baseX += beta * (rawX - this.baseX);
           this.baseY += beta * (rawY - this.baseY);
           this.baseZ += beta * (rawZ - this.baseZ);
         }
 
-        // Dynamic acceleration relative to current baseline
+        // dynamic acceleration relative to baseline
         let ax = rawX - this.baseX;
         let ay = rawY - this.baseY;
-        // az not used for onscreen offset but still contributes to magnitude if needed
         let az = rawZ - this.baseZ;
 
         const sensitivity = 6.0;
@@ -933,15 +975,13 @@
         const normX = Math.max(-1, Math.min(1, this.motionX / maxOffset));
         const normY = Math.max(-1, Math.min(1, this.motionY / maxOffset));
 
-        // Dynamic magnitude (using baseline-adjusted acceleration)
         const dynMagRaw = Math.min(
           1,
-          Math.sqrt(ax*ax + ay*ay + az*az) / 6 // 6 ~ approx 0.6g window
+          Math.sqrt(ax*ax + ay*ay + az*az) / 6
         );
         const magAlpha = 0.12;
         this.motionMag = this.motionMag + magAlpha * (dynMagRaw - this.motionMag);
 
-        // Jitter = how much the onscreen offset is changing frame-to-frame
         const diff = Math.abs(this.motionX - this.prevMotionX) +
                      Math.abs(this.motionY - this.prevMotionY);
         this.prevMotionX = this.motionX;
@@ -951,7 +991,6 @@
         const jitterAlpha = 0.15;
         this.motionJitter = this.motionJitter + jitterAlpha * (diffNorm - this.motionJitter);
 
-        // If there's dynamic or jitter, consider it active
         if (dynMagRaw > 0.03 || diffNorm > 0.03) {
           this.lastActiveTime = Date.now();
         }
@@ -961,8 +1000,8 @@
           motionY: this.motionY,
           normX,
           normY,
-          mag: this.motionMag,      // dynamic level
-          jitter: this.motionJitter, // volatility
+          mag: this.motionMag,
+          jitter: this.motionJitter,
           lastActiveTime: this.lastActiveTime
         });
       }
@@ -973,7 +1012,7 @@
       constructor(onUpdate) {
         this.onUpdate = onUpdate;
         this.audioLevel = 0;
-        this.noiseFloor = 0.05; // baseline "ambient"
+        this.noiseFloor = 0.05;
       }
 
       async start() {
@@ -1008,7 +1047,7 @@
             const norm = avg / 255;
             let levelRaw = Math.min(1, norm * 3);
 
-            // Adapt noise floor so constant music/road noise becomes "normal"
+            // adapt noise floor so constant music/road noise becomes normal
             if (levelRaw < this.noiseFloor) {
               this.noiseFloor += 0.02 * (levelRaw - this.noiseFloor);
             } else {
@@ -1017,7 +1056,7 @@
 
             let level = levelRaw - this.noiseFloor;
             if (level < 0) level = 0;
-            level = Math.min(1, level * 3); // emphasize movement above baseline
+            level = Math.min(1, level * 3);
 
             const aAlpha = 0.12;
             this.audioLevel = this.audioLevel + aAlpha * (level - this.audioLevel);
@@ -1277,7 +1316,8 @@
     let holdMs = randomHoldDuration();
 
     function randomHoldDuration() {
-      return 2000 + Math.random() * 28000;
+      // slightly shorter to see more faces over time
+      return 1500 + Math.random() * 15000; // 1.5–16.5s
     }
 
     const motionManager = new MotionManager((state) => {
