@@ -735,6 +735,9 @@
     const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
     const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠","🎃"];
 
+    // Baseline "personality" faces for rest/neutral/cruise
+    const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
+
     // spicy/intense faces we want mostly reserved for “hard” states
     const EMOJI_SPICY = new Set([
       "😈","👿","🤬","😡","😠","💩","🤯","😱","😳","🤮","🤢","🥵","👹","👺"
@@ -743,13 +746,25 @@
     // Safe chaos pool = everything except spicy
     const SAFE_CHAOS_POOL = EMOJI_ALL.filter(e => !EMOJI_SPICY.has(e));
 
-    // recent-emoji buffer to avoid immediate repeats
+    // recent-emoji buffer to avoid immediate repeats (mostly for events)
     const RECENT_MAX = 8;
     const recentEmojis = [];
 
     // session coverage: try to see many unique emojis per drive
     const SESSION_COVERAGE_TARGET = 40;
     const sessionSeen = new Set();
+
+    const intenseStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
+    const calmStates    = new Set(["rest", "neutral", "cruise", "calmMusic", "deepRest"]);
+
+    // Baseline persistence
+    const BASELINE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
+
+    let baseEmoji = null;
+    let baseEmojiLastSet = 0;
+    let lastEventTime = 0;
+    let currentEmoji = "😀";
+    let currentState = "rest";
 
     function classifyState(motion, audio) {
       const { mag, jitter, lastActiveTime } = motion;
@@ -761,10 +776,10 @@
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && level < 0.08 && stillMs > 30000;
 
-      // emphasize change (jitter) more than absolute magnitude
-      const isRoughRoad  = jitter > 0.45;
-      const isHardG      = mag > 0.75 || jitter > 0.7;
-      const isCornerCruise = mag > 0.25 && mag <= 0.75 && jitter < 0.7;
+      // thresholds tuned down so hardG / roughRoad are easier to hit
+      const isRoughRoad     = jitter > 0.25;
+      const isHardG         = mag > 0.40 || jitter > 0.50;
+      const isCornerCruise  = mag > 0.15 && mag <= 0.40 && jitter < 0.45;
 
       const isCalmMusic  = level > 0.05 && level < 0.25;
       const isHypeMusic  = level >= 0.25;
@@ -836,15 +851,11 @@
         chaosChance = 0.25;
       }
 
-      const intenseStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
-
       if (chaosChance > 0 && Math.random() < chaosChance) {
         if (intenseStates.has(state)) {
-          // intense state can sample from full pool (spicy allowed)
-          pool = EMOJI_ALL;
+          pool = EMOJI_ALL; // full chaos for intense
         } else {
-          // calm/normal chaos uses only safe faces
-          pool = SAFE_CHAOS_POOL;
+          pool = SAFE_CHAOS_POOL; // safe faces for calm chaos
         }
       }
 
@@ -879,6 +890,15 @@
       sessionSeen.add(next);
 
       return next;
+    }
+
+    function pickBaselineEmoji(prevEmoji) {
+      // simple: choose from EMOJI_BASELINE, avoid repeating previous if possible
+      let pool = EMOJI_BASELINE.slice();
+      if (pool.length > 1 && pool.includes(prevEmoji)) {
+        pool = pool.filter(e => e !== prevEmoji);
+      }
+      return randomEmojiFrom(pool);
     }
 
     function vibeBaseFromEmoji(e) {
@@ -981,7 +1001,8 @@
         const sensitivity = 6.0;
         const maxOffset   = 32;
 
-        let targetX = ax * sensitivity;
+        // Invert X so left/right feel better aligned with turns
+        let targetX = -ax * sensitivity;
         let targetY = -ay * sensitivity;
 
         targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
@@ -1133,7 +1154,6 @@
         this.sizeDial.addEventListener("click", () => {
           this.sizeIndex = (this.sizeIndex + 1) % this.sizeLevels.length;
           this.applySize();
-          if (this.onInteraction) this.onInteraction();
         });
       }
 
@@ -1333,18 +1353,6 @@
     };
 
     let audioState  = { level: 0 };
-    let currentEmoji = "😀";
-    let currentState = "rest";
-
-    let autoEnabled = false;
-    let lastInteraction = Date.now();
-    let lastChange = Date.now();
-    let holdMs = randomHoldDuration();
-
-    function randomHoldDuration() {
-      // slightly shorter to see more faces over time
-      return 1500 + Math.random() * 15000; // 1.5–16.5s
-    }
 
     const motionManager = new MotionManager((state) => {
       motionState = state;
@@ -1362,19 +1370,17 @@
       graphUI.setColor(color);
     };
 
-    screenUI.onInteraction = () => {
-      lastInteraction = Date.now();
-      autoEnabled = false;
-    };
-
-    // Manual tap on screen => change emoji by context
+    // Tap on screen => manually cycle baseline personality
     screenEl.addEventListener("click", () => {
-      lastInteraction = Date.now();
-      autoEnabled = false;
-      changeEmojiFromContext(true);
+      const now = Date.now();
+      const emoji = pickBaselineEmoji(currentEmoji);
+      baseEmoji = emoji;
+      baseEmojiLastSet = now;
+      currentEmoji = emoji;
+      screenUI.setEmoji(emoji, currentState);
     });
 
-    // Speaker => toggle graph
+    // Speaker => toggle graph overlay
     speakerEl.addEventListener("click", (e) => {
       e.stopPropagation();
       graphUI.toggle();
@@ -1395,53 +1401,83 @@
       sensorPanel.classList.add("hidden");
     });
 
-    function changeEmojiFromContext(force = false) {
-      const newState = classifyState(motionState, audioState);
-      const emoji = pickEmojiForState(newState, currentEmoji);
-      currentEmoji = emoji;
-      currentState = newState;
-      lastChange = Date.now();
-      holdMs = randomHoldDuration();
-      screenUI.setEmoji(emoji, newState);
-      updateStateDebug(newState);
-    }
-
     function tick() {
       const now = Date.now();
-      const idle = now - lastInteraction;
-
       const newState = classifyState(motionState, audioState);
       updateStateDebug(newState);
 
-      const stateChanged = newState !== currentState;
-      const interestingStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
-      if (stateChanged && interestingStates.has(newState)) {
-        changeEmojiFromContext(true);
-      } else {
+      const wasIntense = intenseStates.has(currentState);
+      const isIntense  = intenseStates.has(newState);
+
+      // --- Intense incident states (hardG / roughRoad / hypeMusic) ---
+      if (isIntense) {
+        // entering or changing incident type
+        if (!wasIntense || newState !== currentState || now - lastEventTime > 3000) {
+          const emoji = pickEmojiForState(newState, currentEmoji);
+          currentEmoji = emoji;
+          screenUI.setEmoji(emoji, newState);
+          lastEventTime = now;
+        }
         currentState = newState;
+        return; // during incidents we don't touch baseline timers
       }
 
-      if (!autoEnabled && idle >= 10000) {
-        autoEnabled = true;
-        lastChange = now;
-        holdMs = randomHoldDuration();
+      // --- Calm / neutral states ---
+      if (wasIntense && !isIntense) {
+        // just exited an intense state → pick a new baseline
+        const emoji = pickBaselineEmoji(currentEmoji);
+        baseEmoji = emoji;
+        baseEmojiLastSet = now;
+        currentEmoji = emoji;
+        screenUI.setEmoji(emoji, newState);
+        currentState = newState;
+        return;
       }
 
-      if (autoEnabled && now - lastChange >= holdMs) {
-        changeEmojiFromContext();
+      // staying in calm / neutral region
+      currentState = newState;
+
+      // ensure we have a baseline emoji
+      if (!baseEmoji) {
+        const emoji = pickBaselineEmoji(currentEmoji);
+        baseEmoji = emoji;
+        baseEmojiLastSet = now;
+        currentEmoji = emoji;
+        screenUI.setEmoji(emoji, newState);
+        return;
+      }
+
+      // if we've been calm for long enough, rotate to a new baseline
+      if (now - baseEmojiLastSet > BASELINE_DURATION_MS) {
+        const emoji = pickBaselineEmoji(baseEmoji);
+        baseEmoji = emoji;
+        baseEmojiLastSet = now;
+        currentEmoji = emoji;
+        screenUI.setEmoji(emoji, newState);
+      } else {
+        // keep showing current baseline
+        if (currentEmoji !== baseEmoji) {
+          currentEmoji = baseEmoji;
+          screenUI.setEmoji(baseEmoji, newState);
+        }
       }
     }
 
-    setInterval(tick, 400);
+    setInterval(tick, 350);
 
     function init() {
       screenUI.forceCenterEmoji();
 
+      const now = Date.now();
       const initState = classifyState(motionState, audioState);
-      const initEmoji = pickEmojiForState(initState, currentEmoji);
-      currentEmoji = initEmoji;
       currentState = initState;
-      screenUI.setEmoji(initEmoji, initState);
+
+      const initBaseline = pickBaselineEmoji(currentEmoji);
+      baseEmoji = initBaseline;
+      baseEmojiLastSet = now;
+      currentEmoji = initBaseline;
+
+      screenUI.setEmoji(initBaseline, initState);
       updateStateDebug(initState);
 
       const color = screenUI.getCurrentThemeLightColor();
