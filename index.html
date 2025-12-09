@@ -727,11 +727,14 @@
 
   // motion state
   let motionX = 0, motionY = 0;
-  let motionLevel = 0;          // smoothed magnitude (0–1)
+  let motionNormX = 0, motionNormY = 0;
+
+  // graph state
   let motionGraphEnabled = false;
   let motionGraphColor = "#7c3aed";
   let graphWidth = 0, graphHeight = 0;
-  let dotX = 0;                 // current x of the dot
+  const TRAIL_LENGTH = 20;
+  let trail = [];
 
   // base vibe level for pulsing with audio
   let vibeBaseLevel = 0.5;
@@ -863,13 +866,9 @@
     document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
     document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
 
-    // Motion magnitude for graph, smoothed to avoid spikiness
-    const mag   = Math.sqrt(ax*ax + ay*ay + az*az);
-    const delta = Math.abs(mag - 9.81);       // deviation from gravity
-    const rawNorm = Math.min(1, delta / 4);   // 0–1
-
-    const beta = 0.12; // smoothing factor for graph
-    motionLevel = motionLevel + beta * (rawNorm - motionLevel);
+    // normalized for graph (-1 to 1)
+    motionNormX = Math.max(-1, Math.min(1, motionX / maxOffset));
+    motionNormY = Math.max(-1, Math.min(1, motionY / maxOffset));
   }
 
   async function enableMotion() {
@@ -971,27 +970,45 @@
 
     if (!motionGraphEnabled) return;
 
-    // translucent panel behind the dot
+    // dotted "paper" grid
+    const spacing = 8;
     motionCtx.save();
-    motionCtx.globalAlpha = 0.55;
-    motionCtx.fillStyle = "rgba(15, 23, 42, 0.85)";
-    motionCtx.fillRect(0, 0, w, h);
+    motionCtx.fillStyle = motionGraphColor;
+    motionCtx.globalAlpha = 0.16;
+    for (let y = 2; y < h; y += spacing) {
+      for (let x = 2; x < w; x += spacing) {
+        motionCtx.fillRect(x, y, 1.5, 1.5);
+      }
+    }
     motionCtx.restore();
 
-    // advance the dot position
-    dotX += 2.5;
-    if (dotX > w) dotX = 0;
+    // pixel position from normalized motion
+    const margin = 4;
+    const cx = w / 2;
+    const cy = h / 2;
+    const maxX = (w / 2) - margin;
+    const maxY = (h / 2) - margin;
 
-    // vertical position from smoothed motionLevel
-    const y = h - motionLevel * h;
+    const px = cx + motionNormX * maxX;
+    const py = cy + motionNormY * maxY;
 
-    // draw the dot
-    motionCtx.beginPath();
-    motionCtx.arc(dotX, y, 3.5, 0, Math.PI * 2);
-    motionCtx.fillStyle = motionGraphColor;
-    motionCtx.globalAlpha = 0.95;
-    motionCtx.fill();
-    motionCtx.globalAlpha = 1;
+    // update trail
+    trail.unshift({ x: px, y: py });
+    if (trail.length > TRAIL_LENGTH) trail.pop();
+
+    // draw trail squares with fading alpha
+    for (let i = 0; i < trail.length; i++) {
+      const t = trail[i];
+      const alpha = 1 - i / TRAIL_LENGTH;
+      const size = 5 - (i * 0.08); // slight shrink over time
+      const half = size / 2;
+
+      motionCtx.save();
+      motionCtx.globalAlpha = 0.22 + alpha * 0.6;
+      motionCtx.fillStyle = motionGraphColor;
+      motionCtx.fillRect(t.x - half, t.y - half, size, size);
+      motionCtx.restore();
+    }
   }
 
   function renderLoop() {
@@ -1007,6 +1024,8 @@
       motionCanvas.classList.add("active");
     } else {
       motionCanvas.classList.remove("active");
+      trail = [];
+      motionCtx.clearRect(0, 0, graphWidth, graphHeight);
     }
   }
 
