@@ -308,6 +308,18 @@
       100% { transform: scale(1); }
     }
 
+    /* Hard-G stressed bounce */
+    .emoji-hard-g {
+      animation: hardGBounce 360ms cubic-bezier(.34,1.56,.64,1), breathe 6s ease-in-out 360ms infinite;
+    }
+
+    @keyframes hardGBounce {
+      0%   { transform: translateY(0) scale(1); }
+      30%  { transform: translateY(-8px) scale(1.06); }
+      60%  { transform: translateY(4px)  scale(0.98); }
+      100% { transform: translateY(0) scale(1); }
+    }
+
     /* BOTTOM CONTROLS ----------------------------------------------------- */
 
     .gb-bottom {
@@ -702,12 +714,12 @@
   ];
 
   // Context emoji pools ----------------------------------------
-  const calmRestEmojis = ["😌","☺️","😊","😇","😴","🫩","😪"];
-  const hardGEmojis    = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
-  const cruiseEmojis   = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
-  const roughRoadEmojis= ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
-  const calmMusicEmojis= ["😌","☺️","😊","😇","🤗","🫡","🫠"];
-  const hypeMusicEmojis= ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
+  const calmRestEmojis  = ["😌","☺️","😊","😇","😴","🫩","😪"];
+  const hardGEmojis     = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
+  const cruiseEmojis    = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
+  const roughRoadEmojis = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
+  const calmMusicEmojis = ["😌","☺️","😊","😇","🤗","🫡","🫠"];
+  const hypeMusicEmojis = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
 
   const gbEl        = document.getElementById("gb");
   const screenEl    = document.getElementById("screen");
@@ -738,10 +750,9 @@
   let motionNormX = 0, motionNormY = 0;
   let motionMag = 0;     // 0–1 how strong G is
   let motionJitter = 0;  // 0–1 how jerky
-
-  // for jitter
   let prevMotionX = 0;
   let prevMotionY = 0;
+  let lastMotionActiveTime = Date.now();
 
   // graph state
   let motionGraphEnabled = false;
@@ -767,18 +778,23 @@
     autoEnabled = false;
   }
 
-  function setEmoji(e) {
+  function setEmoji(e, state) {
     if (!e) return;
     if (e === currentEmoji && Math.random() < 0.5) {
-      // nudge to something else
       e = randomEmojiFrom(emojiList);
     }
     currentEmoji = e;
     emojiEl.textContent = e;
 
-    emojiEl.classList.remove("emoji-pop");
-    void emojiEl.offsetWidth;
-    emojiEl.classList.add("emoji-pop");
+    // Reset motion-based classes & apply appropriate animation
+    emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
+    void emojiEl.offsetWidth; // reflow for animation restart
+
+    if (state === "hardG") {
+      emojiEl.classList.add("emoji-hard-g");
+    } else {
+      emojiEl.classList.add("emoji-pop");
+    }
 
     gbEl.classList.remove("wobble");
     void gbEl.offsetWidth;
@@ -808,14 +824,23 @@
   // CLASSIFY STATE --------------------------------------------------------
 
   function classifyState() {
-    // thresholds are tuned by feel
     const isVeryStill  = motionMag < 0.08 && motionJitter < 0.05;
+    const now = Date.now();
+    const stillMs = now - lastMotionActiveTime;
+
+    // Deep rest: very still, low audio, >30s
+    const deepRestActive = isVeryStill && audioLevel < 0.08 && stillMs > 30000;
+
     const isRoughRoad  = motionJitter > 0.35;
     const isHardG      = motionMag > 0.65;
     const isCornerCruise = motionMag > 0.25 && motionMag <= 0.65;
 
     const isCalmMusic  = audioLevel > 0.05 && audioLevel < 0.25;
     const isHypeMusic  = audioLevel >= 0.25;
+
+    if (deepRestActive) {
+      return "deepRest";
+    }
 
     // parked / very chill
     if (isVeryStill) {
@@ -826,23 +851,24 @@
     }
 
     // moving
-    if (isRoughRoad)   return "roughRoad";
-    if (isHardG)       return "hardG";
-    if (isCornerCruise)return "cruise";
+    if (isRoughRoad)    return "roughRoad";
+    if (isHardG)        return "hardG";
+    if (isCornerCruise) return "cruise";
 
-    // neutral drive
-    if (isHypeMusic)   return "hypeMusic";
-    if (isCalmMusic)   return "calmMusic";
+    // neutral drive with music bias
+    if (isHypeMusic) return "hypeMusic";
+    if (isCalmMusic) return "calmMusic";
 
     return "neutral";
   }
 
-  function pickContextEmoji() {
-    const state = classifyState();
-
+  function pickContextEmoji(state) {
     let pool;
 
     switch (state) {
+      case "deepRest":
+        pool = ["😴"];
+        break;
       case "rest":
         pool = calmRestEmojis;
         break;
@@ -867,14 +893,15 @@
         break;
     }
 
-    // Sometimes pick from global list anyway so it doesn't get too samey
-    if (Math.random() < 0.2) {
-      pool = emojiList;
+    // Only mix in the global pool in non-calm states
+    if (state !== "rest" && state !== "calmMusic" && state !== "deepRest") {
+      if (Math.random() < 0.2) {
+        pool = emojiList;
+      }
     }
 
     let next = randomEmojiFrom(pool);
 
-    // avoid repeating the exact same emoji too often
     if (pool.length > 1 && next === currentEmoji) {
       next = randomEmojiFrom(pool);
     }
@@ -883,8 +910,9 @@
   }
 
   function nextEmojiFromContext() {
-    const chosen = pickContextEmoji();
-    setEmoji(chosen);
+    const state = classifyState();
+    const chosen = pickContextEmoji(state);
+    setEmoji(chosen, state);
   }
 
   function tick() {
@@ -944,8 +972,6 @@
     const ay = acc.y || 0;
     const az = acc.z || 0;
 
-    // Hanging charm behavior: move opposite of car acceleration
-    // (car accelerates right => emoji drifts left, etc.)
     const sensitivity = 6.0;   // px per m/s^2
     const maxOffset   = 32;    // clamp
 
@@ -976,9 +1002,14 @@
     const diff = Math.abs(motionX - prevMotionX) + Math.abs(motionY - prevMotionY);
     prevMotionX = motionX;
     prevMotionY = motionY;
-    const diffNorm = Math.min(1, diff / 20); // tune this divisor for “roughness”
+    const diffNorm = Math.min(1, diff / 20); // tune for “roughness”
     const jitterAlpha = 0.15;
     motionJitter = motionJitter + jitterAlpha * (diffNorm - motionJitter);
+
+    // If there's meaningful motion, reset lastMotionActiveTime
+    if (magRaw > 0.03 || diffNorm > 0.03) {
+      lastMotionActiveTime = Date.now();
+    }
   }
 
   async function enableMotion() {
@@ -1175,11 +1206,14 @@
     updateMotionGraphColor();
     resizeMotionCanvas();
 
+    // force centered starting position
+    document.documentElement.style.setProperty("--emoji-offset-x", "0px");
+    document.documentElement.style.setProperty("--emoji-offset-y", "0px");
+
     // context-based emoji at startup (car likely at rest)
-    const startEmoji = pickContextEmoji();
-    currentEmoji = startEmoji;
-    emojiEl.textContent = startEmoji;
-    adjustVibeGauge(startEmoji);
+    const initialState = classifyState();
+    const startEmoji = pickContextEmoji(initialState);
+    setEmoji(startEmoji, initialState);
 
     // boot sequence
     screenEl.classList.add("boot-off");
