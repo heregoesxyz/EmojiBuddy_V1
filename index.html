@@ -727,16 +727,25 @@
       "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
     ];
 
+    // Calm pools kept for possible future use but not used for baseline now
     const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪","🤗","🫠"];
     const EMOJI_DEEP_REST   = ["😴","😪","🫩"];
-    const EMOJI_HARD_G      = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
-    const EMOJI_CRUISE      = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
     const EMOJI_ROUGH_ROAD  = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
-    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
-    const EMOJI_HYPE_MUSIC  = ["🤩","🥳","😝","😜","🤪","😈","😎","🤠","🎃"];
 
-    // Baseline "personality" faces for rest/neutral/cruise
+    // Baseline "personality" faces for rest/neutral/cruise/calm
     const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
+
+    // Hard G + Hype music combined pool
+    const EMOJI_HARD_G = [
+      "😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺",
+      "🤩","🥳","😝","😜","🤪","😎","🤠","🎃"
+    ];
+
+    // Hype music now uses the same pool as hard G
+    const EMOJI_HYPE_MUSIC = EMOJI_HARD_G;
+
+    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
+    const EMOJI_CRUISE      = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
 
     // spicy/intense faces we want mostly reserved for “hard” states
     const EMOJI_SPICY = new Set([
@@ -746,7 +755,7 @@
     // Safe chaos pool = everything except spicy
     const SAFE_CHAOS_POOL = EMOJI_ALL.filter(e => !EMOJI_SPICY.has(e));
 
-    // recent-emoji buffer to avoid immediate repeats (mostly for events)
+    // recent-emoji buffer to avoid immediate repeats (incident / chaos)
     const RECENT_MAX = 8;
     const recentEmojis = [];
 
@@ -830,7 +839,7 @@
           pool = EMOJI_CALM_MUSIC;
           break;
         case "hypeMusic":
-          pool = EMOJI_HYPE_MUSIC;
+          pool = EMOJI_HYPE_MUSIC; // same as EMOJI_HARD_G
           break;
         case "neutral":
         default:
@@ -842,18 +851,16 @@
       let chaosChance = 0.0;
 
       if (state === "rest" || state === "cruise" || state === "calmMusic") {
-        // calm / cruising → lots of variety from SAFE pool
         chaosChance = 0.65;
       } else if (state === "hypeMusic" || state === "neutral") {
         chaosChance = 0.45;
       } else if (state !== "deepRest") {
-        // hardG / roughRoad still themed but with a little chaos
         chaosChance = 0.25;
       }
 
       if (chaosChance > 0 && Math.random() < chaosChance) {
         if (intenseStates.has(state)) {
-          pool = EMOJI_ALL; // full chaos for intense
+          pool = EMOJI_ALL; // full chaos for intense states
         } else {
           pool = SAFE_CHAOS_POOL; // safe faces for calm chaos
         }
@@ -893,7 +900,7 @@
     }
 
     function pickBaselineEmoji(prevEmoji) {
-      // simple: choose from EMOJI_BASELINE, avoid repeating previous if possible
+      // baseline faces only
       let pool = EMOJI_BASELINE.slice();
       if (pool.length > 1 && pool.includes(prevEmoji)) {
         pool = pool.filter(e => e !== prevEmoji);
@@ -1191,7 +1198,7 @@
         this.emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
         void this.emojiEl.offsetWidth;
 
-        if (state === "hardG") {
+        if (state === "hardG" || state === "hypeMusic") {
           this.emojiEl.classList.add("emoji-hard-g");
         } else {
           this.emojiEl.classList.add("emoji-pop");
@@ -1411,7 +1418,7 @@
 
       // --- Intense incident states (hardG / roughRoad / hypeMusic) ---
       if (isIntense) {
-        // entering or changing incident type
+        // entering or changing incident type or 3s since last event → new reaction
         if (!wasIntense || newState !== currentState || now - lastEventTime > 3000) {
           const emoji = pickEmojiForState(newState, currentEmoji);
           currentEmoji = emoji;
@@ -1422,15 +1429,15 @@
         return; // during incidents we don't touch baseline timers
       }
 
-      // --- Calm / neutral states ---
+      // --- Calm / neutral states use baseline personality ---
       if (wasIntense && !isIntense) {
         // just exited an intense state → pick a new baseline
         const emoji = pickBaselineEmoji(currentEmoji);
         baseEmoji = emoji;
         baseEmojiLastSet = now;
         currentEmoji = emoji;
-        screenUI.setEmoji(emoji, newState);
         currentState = newState;
+        screenUI.setEmoji(emoji, newState);
         return;
       }
 
