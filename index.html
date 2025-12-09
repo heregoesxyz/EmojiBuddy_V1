@@ -701,6 +701,14 @@
     "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
   ];
 
+  // Context emoji pools ----------------------------------------
+  const calmRestEmojis = ["😌","☺️","😊","😇","😴","🫩","😪"];
+  const hardGEmojis    = ["😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺"];
+  const cruiseEmojis   = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
+  const roughRoadEmojis= ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
+  const calmMusicEmojis= ["😌","☺️","😊","😇","🤗","🫡","🫠"];
+  const hypeMusicEmojis= ["🤩","🥳","😝","😜","🤪","😈","😎","🤠"];
+
   const gbEl        = document.getElementById("gb");
   const screenEl    = document.getElementById("screen");
   const emojiEl     = document.getElementById("emoji");
@@ -728,6 +736,12 @@
   // motion state
   let motionX = 0, motionY = 0;
   let motionNormX = 0, motionNormY = 0;
+  let motionMag = 0;     // 0–1 how strong G is
+  let motionJitter = 0;  // 0–1 how jerky
+
+  // for jitter
+  let prevMotionX = 0;
+  let prevMotionY = 0;
 
   // graph state
   let motionGraphEnabled = false;
@@ -736,15 +750,16 @@
   const TRAIL_LENGTH = 20;
   let trail = [];
 
-  // base vibe level for pulsing with audio
+  // audio state
+  let audioLevel = 0;    // smoothed 0–1
   let vibeBaseLevel = 0.5;
 
   function randomHoldDuration() {
     return 2000 + Math.random() * 28000;
   }
 
-  function randomEmoji() {
-    return emojiList[Math.floor(Math.random() * emojiList.length)];
+  function randomEmojiFrom(list) {
+    return list[Math.floor(Math.random() * list.length)];
   }
 
   function markInteraction() {
@@ -754,6 +769,10 @@
 
   function setEmoji(e) {
     if (!e) return;
+    if (e === currentEmoji && Math.random() < 0.5) {
+      // nudge to something else
+      e = randomEmojiFrom(emojiList);
+    }
     currentEmoji = e;
     emojiEl.textContent = e;
 
@@ -786,11 +805,86 @@
     vibeFillEl.style.transform = `scaleX(${vibeBaseLevel})`;
   }
 
-  function nextRandomEmoji() {
-    let next = randomEmoji();
-    if (emojiList.length > 1 && next === currentEmoji)
-      next = randomEmoji();
-    setEmoji(next);
+  // CLASSIFY STATE --------------------------------------------------------
+
+  function classifyState() {
+    // thresholds are tuned by feel
+    const isVeryStill  = motionMag < 0.08 && motionJitter < 0.05;
+    const isRoughRoad  = motionJitter > 0.35;
+    const isHardG      = motionMag > 0.65;
+    const isCornerCruise = motionMag > 0.25 && motionMag <= 0.65;
+
+    const isCalmMusic  = audioLevel > 0.05 && audioLevel < 0.25;
+    const isHypeMusic  = audioLevel >= 0.25;
+
+    // parked / very chill
+    if (isVeryStill) {
+      if (audioLevel < 0.05) return "rest";
+      if (isCalmMusic)       return "calmMusic";
+      if (isHypeMusic)       return "hypeMusic";
+      return "rest";
+    }
+
+    // moving
+    if (isRoughRoad)   return "roughRoad";
+    if (isHardG)       return "hardG";
+    if (isCornerCruise)return "cruise";
+
+    // neutral drive
+    if (isHypeMusic)   return "hypeMusic";
+    if (isCalmMusic)   return "calmMusic";
+
+    return "neutral";
+  }
+
+  function pickContextEmoji() {
+    const state = classifyState();
+
+    let pool;
+
+    switch (state) {
+      case "rest":
+        pool = calmRestEmojis;
+        break;
+      case "hardG":
+        pool = hardGEmojis;
+        break;
+      case "cruise":
+        pool = cruiseEmojis;
+        break;
+      case "roughRoad":
+        pool = roughRoadEmojis;
+        break;
+      case "calmMusic":
+        pool = calmMusicEmojis;
+        break;
+      case "hypeMusic":
+        pool = hypeMusicEmojis;
+        break;
+      case "neutral":
+      default:
+        pool = emojiList;
+        break;
+    }
+
+    // Sometimes pick from global list anyway so it doesn't get too samey
+    if (Math.random() < 0.2) {
+      pool = emojiList;
+    }
+
+    let next = randomEmojiFrom(pool);
+
+    // avoid repeating the exact same emoji too often
+    if (pool.length > 1 && next === currentEmoji) {
+      next = randomEmojiFrom(pool);
+    }
+
+    return next;
+  }
+
+  function nextEmojiFromContext() {
+    const chosen = pickContextEmoji();
+    setEmoji(chosen);
   }
 
   function tick() {
@@ -804,7 +898,7 @@
     }
 
     if (autoEnabled && now - lastChange >= holdMs) {
-      nextRandomEmoji();
+      nextEmojiFromContext();
       lastChange = now;
       holdMs = randomHoldDuration();
     }
@@ -834,12 +928,13 @@
     markInteraction();
   });
 
+  // Manual tap: change emoji, but using context logic
   screenEl.addEventListener("click", () => {
     markInteraction();
-    nextRandomEmoji();
+    nextEmojiFromContext();
   });
 
-  /* MOTION HANDLING ------------------------------------------------------ */
+  /* MOTION HANDLING (hanging air freshener style) ------------------------ */
 
   function handleMotion(event) {
     const acc = event.accelerationIncludingGravity;
@@ -849,17 +944,19 @@
     const ay = acc.y || 0;
     const az = acc.z || 0;
 
-    // Amplified emoji motion
+    // Hanging charm behavior: move opposite of car acceleration
+    // (car accelerates right => emoji drifts left, etc.)
     const sensitivity = 6.0;   // px per m/s^2
     const maxOffset   = 32;    // clamp
 
-    let targetX = -ax * sensitivity; // push opposite G-force
-    let targetY = ay * sensitivity;
+    // Orientation note: you may want to flip signs after road testing
+    let targetX = ax * sensitivity;    // lateral
+    let targetY = -ay * sensitivity;   // vertical
 
     targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
     targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
 
-    const alpha = 0.25; // smoothing
+    const alpha = 0.25; // smoothing; smaller = heavier, more floaty
     motionX = motionX + alpha * (targetX - motionX);
     motionY = motionY + alpha * (targetY - motionY);
 
@@ -869,6 +966,19 @@
     // normalized for graph (-1 to 1)
     motionNormX = Math.max(-1, Math.min(1, motionX / maxOffset));
     motionNormY = Math.max(-1, Math.min(1, motionY / maxOffset));
+
+    // motion magnitude (0–1)
+    const magRaw = Math.min(1, Math.sqrt(motionX*motionX + motionY*motionY) / maxOffset);
+    const magAlpha = 0.1;
+    motionMag = motionMag + magAlpha * (magRaw - motionMag);
+
+    // jitter based on frame-to-frame position changes
+    const diff = Math.abs(motionX - prevMotionX) + Math.abs(motionY - prevMotionY);
+    prevMotionX = motionX;
+    prevMotionY = motionY;
+    const diffNorm = Math.min(1, diff / 20); // tune this divisor for “roughness”
+    const jitterAlpha = 0.15;
+    motionJitter = motionJitter + jitterAlpha * (diffNorm - motionJitter);
   }
 
   async function enableMotion() {
@@ -920,6 +1030,10 @@
         const avg = sum / data.length;   // 0–255
         const norm = avg / 255;          // 0–1
         let level = Math.min(1, norm * 3);  // amplify
+
+        // Smooth global audioLevel for state logic
+        const aAlpha = 0.12;
+        audioLevel = audioLevel + aAlpha * (level - audioLevel);
 
         // LCD glow amount
         document.documentElement
@@ -1000,7 +1114,7 @@
     for (let i = 0; i < trail.length; i++) {
       const t = trail[i];
       const alpha = 1 - i / TRAIL_LENGTH;
-      const size = 5 - (i * 0.08); // slight shrink over time
+      const size = 5 - (i * 0.08); // slight shrink
       const half = size / 2;
 
       motionCtx.save();
@@ -1061,8 +1175,8 @@
     updateMotionGraphColor();
     resizeMotionCanvas();
 
-    // random emoji at startup
-    const startEmoji = randomEmoji();
+    // context-based emoji at startup (car likely at rest)
+    const startEmoji = pickContextEmoji();
     currentEmoji = startEmoji;
     emojiEl.textContent = startEmoji;
     adjustVibeGauge(startEmoji);
