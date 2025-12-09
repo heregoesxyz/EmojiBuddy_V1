@@ -629,7 +629,8 @@
       <div class="sensor-title">Enable Motion &amp; Mic</div>
       <div class="sensor-text">
         Mount your phone in its normal driving position, then tap Allow.
-        Emoji Buddy will treat this as “zero” and adapt to bumps, G-forces, and sound over time.
+        Emoji Buddy will treat this as “zero” and adapt to bumps and G-forces over time.
+        Mic input powers the glow and vibes only — it does not change the emoji.
         No data is stored or shared; all processing happens locally on your device.
       </div>
       <div class="sensor-actions">
@@ -727,25 +728,27 @@
       "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
     ];
 
-    // Calm pools kept for possible future use but not used for baseline now
+    // calm / rest pool (kept for deepRest if you ever want)
     const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪","🤗","🫠"];
     const EMOJI_DEEP_REST   = ["😴","😪","🫩"];
+
+    // rough road (sick / dizzy)
     const EMOJI_ROUGH_ROAD  = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
 
-    // Baseline "personality" faces for rest/neutral/cruise/calm
+    // Baseline personality for calm driving
     const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
 
-    // Hard G + Hype music combined pool
-    const EMOJI_HARD_G = [
+    // INCIDENT POOL: previous hardG + hypeMusic + calmMusic + cruise all merged
+    const EMOJI_HARD_G = [...new Set([
+      // original hard G
       "😈","👿","🤬","😤","🤯","😱","😳","💩","👹","👺",
-      "🤩","🥳","😝","😜","🤪","😎","🤠","🎃"
-    ];
-
-    // Hype music now uses the same pool as hard G
-    const EMOJI_HYPE_MUSIC = EMOJI_HARD_G;
-
-    const EMOJI_CALM_MUSIC  = ["😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰"];
-    const EMOJI_CRUISE      = ["😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"];
+      // hype/party faces
+      "🤩","🥳","😝","😜","🤪","😎","🤠","🎃",
+      // old calm music faces
+      "😌","☺️","😊","😇","🤗","🫡","🫠","😍","🥰",
+      // old cruise faces
+      "😀","😃","😄","😁","😎","🤠","🤩","🥳","😺","😸","😻"
+    ])];
 
     // spicy/intense faces we want mostly reserved for “hard” states
     const EMOJI_SPICY = new Set([
@@ -763,8 +766,8 @@
     const SESSION_COVERAGE_TARGET = 40;
     const sessionSeen = new Set();
 
-    const intenseStates = new Set(["hardG", "roughRoad", "hypeMusic"]);
-    const calmStates    = new Set(["rest", "neutral", "cruise", "calmMusic", "deepRest"]);
+    // Only motion-driven incident states
+    const intenseStates = new Set(["hardG", "roughRoad"]);
 
     // Baseline persistence
     const BASELINE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
@@ -775,39 +778,26 @@
     let currentEmoji = "😀";
     let currentState = "rest";
 
-    function classifyState(motion, audio) {
+    // --- State classification: motion only (audio ignored for state/emoji) ---
+    function classifyState(motion, audioIgnored) {
       const { mag, jitter, lastActiveTime } = motion;
-      const level = audio.level ?? 0;
 
       const now = Date.now();
       const stillMs = now - lastActiveTime;
 
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
-      const deepRestActive = isVeryStill && level < 0.08 && stillMs > 30000;
+      const deepRestActive = isVeryStill && stillMs > 30000;
 
-      // thresholds tuned down so hardG / roughRoad are easier to hit
       const isRoughRoad     = jitter > 0.25;
       const isHardG         = mag > 0.40 || jitter > 0.50;
       const isCornerCruise  = mag > 0.15 && mag <= 0.40 && jitter < 0.45;
 
-      const isCalmMusic  = level > 0.05 && level < 0.25;
-      const isHypeMusic  = level >= 0.25;
-
       if (deepRestActive) return "deepRest";
 
-      if (isVeryStill) {
-        if (level < 0.05) return "rest";
-        if (isCalmMusic)  return "calmMusic";
-        if (isHypeMusic)  return "hypeMusic";
-        return "rest";
-      }
-
-      if (isRoughRoad)    return "roughRoad";
-      if (isHardG)        return "hardG";
-      if (isCornerCruise) return "cruise";
-
-      if (isHypeMusic) return "hypeMusic";
-      if (isCalmMusic) return "calmMusic";
+      if (isVeryStill)     return "rest";
+      if (isRoughRoad)     return "roughRoad";
+      if (isHardG)         return "hardG";
+      if (isCornerCruise)  return "cruise";
 
       return "neutral";
     }
@@ -829,19 +819,11 @@
         case "hardG":
           pool = EMOJI_HARD_G;
           break;
-        case "cruise":
-          pool = EMOJI_CRUISE;
-          break;
         case "roughRoad":
           pool = EMOJI_ROUGH_ROAD;
           break;
-        case "calmMusic":
-          pool = EMOJI_CALM_MUSIC;
-          break;
-        case "hypeMusic":
-          pool = EMOJI_HYPE_MUSIC; // same as EMOJI_HARD_G
-          break;
         case "neutral":
+        case "cruise":
         default:
           pool = EMOJI_ALL;
           break;
@@ -850,11 +832,12 @@
       // --- CHAOS VARIETY WITHOUT UNLOCKING SPICY IN CALM STATES ---
       let chaosChance = 0.0;
 
-      if (state === "rest" || state === "cruise" || state === "calmMusic") {
+      if (state === "rest" || state === "cruise") {
         chaosChance = 0.65;
-      } else if (state === "hypeMusic" || state === "neutral") {
+      } else if (state === "neutral") {
         chaosChance = 0.45;
       } else if (state !== "deepRest") {
+        // hardG / roughRoad still themed but with a little chaos
         chaosChance = 0.25;
       }
 
@@ -1054,7 +1037,7 @@
       }
     }
 
-    // ---------- Audio manager with adaptive baseline ----------
+    // ---------- Audio manager (glow + vibes only) ----------
     class AudioManager {
       constructor(onUpdate) {
         this.onUpdate = onUpdate;
@@ -1198,7 +1181,7 @@
         this.emojiEl.classList.remove("emoji-pop", "emoji-hard-g");
         void this.emojiEl.offsetWidth;
 
-        if (state === "hardG" || state === "hypeMusic") {
+        if (state === "hardG" || state === "roughRoad") {
           this.emojiEl.classList.add("emoji-hard-g");
         } else {
           this.emojiEl.classList.add("emoji-pop");
@@ -1416,7 +1399,7 @@
       const wasIntense = intenseStates.has(currentState);
       const isIntense  = intenseStates.has(newState);
 
-      // --- Intense incident states (hardG / roughRoad / hypeMusic) ---
+      // --- Intense incident states (hardG / roughRoad) ---
       if (isIntense) {
         // entering or changing incident type or 3s since last event → new reaction
         if (!wasIntense || newState !== currentState || now - lastEventTime > 3000) {
@@ -1429,7 +1412,7 @@
         return; // during incidents we don't touch baseline timers
       }
 
-      // --- Calm / neutral states use baseline personality ---
+      // --- Calm / neutral states use baseline personality only ---
       if (wasIntense && !isIntense) {
         // just exited an intense state → pick a new baseline
         const emoji = pickBaselineEmoji(currentEmoji);
