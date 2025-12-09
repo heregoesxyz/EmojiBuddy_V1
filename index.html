@@ -397,7 +397,7 @@
       border-radius: inherit;
       background: linear-gradient(90deg, #22c55e, #facc15, #f97316);
       box-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
-      transition: transform 260ms ease-out;
+      transition: transform 120ms ease-out, box-shadow 80ms ease-out;
     }
 
     /* SIZE DIAL ----------------------------------------------------------- */
@@ -642,6 +642,9 @@
   // motion state
   let motionX = 0, motionY = 0;
 
+  // base vibe level for pulsing with audio
+  let vibeBaseLevel = 0.5;
+
   function randomHoldDuration() {
     return 2000 + Math.random() * 28000;
   }
@@ -685,7 +688,8 @@
     else if (lowSet.includes(e)) level = 0.2;
     else level = 0.55;
 
-    vibeFillEl.style.transform = `scaleX(${level})`;
+    vibeBaseLevel = level;
+    vibeFillEl.style.transform = `scaleX(${vibeBaseLevel})`;
   }
 
   function nextRandomEmoji() {
@@ -746,19 +750,20 @@
     const acc = event.accelerationIncludingGravity;
     if (!acc) return;
 
-    const ax = acc.x || 0; // left-right
-    const ay = acc.y || 0; // up-down / front-back depending on orientation
+    const ax = acc.x || 0;
+    const ay = acc.y || 0;
 
-    const sensitivity = 2.4;    // px per m/s^2
-    const maxOffset   = 18;     // clamp in px
+    // Amplified motion
+    const sensitivity = 6.0;   // px per m/s^2 (was ~2.4)
+    const maxOffset   = 32;    // clamp
 
-    let targetX = -ax * sensitivity; // push opposite direction of G-force
+    let targetX = -ax * sensitivity; // push opposite G-force
     let targetY = ay * sensitivity;
 
     targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
     targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
 
-    const alpha = 0.15; // smoothing
+    const alpha = 0.25; // smoothing (higher = snappier)
     motionX = motionX + alpha * (targetX - motionX);
     motionY = motionY + alpha * (targetY - motionY);
 
@@ -789,9 +794,17 @@
     }
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: false
+        }
+      });
+
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const audioCtx = new AudioCtx();
+      await audioCtx.resume();
+
       const source = audioCtx.createMediaStreamSource(stream);
       const analyser = audioCtx.createAnalyser();
       analyser.fftSize = 1024;
@@ -799,21 +812,27 @@
       source.connect(analyser);
 
       function audioLoop() {
-        analyser.getByteTimeDomainData(data);
+        analyser.getByteFrequencyData(data); // frequency-based level
         let sum = 0;
         for (let i = 0; i < data.length; i++) {
-          const v = (data[i] - 128) / 128;
-          sum += v * v;
+          sum += data[i];
         }
-        const rms = Math.sqrt(sum / data.length); // ~0-1
-        let level = Math.min(1, rms * 8);        // boost sensitivity a bit
+        const avg = sum / data.length;   // 0–255
+        const norm = avg / 255;          // 0–1
+        let level = Math.min(1, norm * 3);  // amplify a lot
 
         // LCD glow amount
-        document.documentElement.style.setProperty("--audio-glow", (level * 0.8).toFixed(3));
+        document.documentElement
+          .style
+          .setProperty("--audio-glow", (level * 1.0).toFixed(3));
 
-        // Vibes glow pulse
-        const extra = 10 + level * 24; // base 10px to ~34px
-        vibeFillEl.style.boxShadow = `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.95)`;
+        // Vibes bar pulsing around base level
+        const pulsed = Math.min(1, vibeBaseLevel * (0.7 + level * 1.0));
+        vibeFillEl.style.transform = `scaleX(${pulsed.toFixed(3)})`;
+
+        // Glow size
+        const extra = 10 + level * 32; // stronger glow
+        vibeFillEl.style.boxShadow = `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.98)`;
 
         requestAnimationFrame(audioLoop);
       }
