@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -260,6 +259,7 @@
       right: 8px;
       height: 30px;
       z-index: 2;
+      pointer-events: none;
     }
 
     .motion-graph-canvas {
@@ -326,6 +326,7 @@
       gap: 4px;
       opacity: 0.6;
       filter: drop-shadow(0 1px 0 rgba(15, 23, 42, 0.5));
+      cursor: pointer;
     }
 
     .speaker-dot {
@@ -636,7 +637,7 @@
 
       <div class="gb-screen-frame">
         <div class="gb-screen boot-off boot-flash" id="screen">
-          <!-- Motion graph region (double-tap here to toggle) -->
+          <!-- Motion graph overlay -->
           <div class="motion-graph-shell" id="motionRegion">
             <canvas class="motion-graph-canvas" id="motionCanvas"></canvas>
           </div>
@@ -649,7 +650,7 @@
 
       <div class="gb-bottom">
 
-        <div class="speaker">
+        <div class="speaker" id="speaker">
           <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
           <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
           <div class="speaker-dot"></div><div class="speaker-dot"></div><div class="speaker-dot"></div>
@@ -712,6 +713,7 @@
   const motionRegion = document.getElementById("motionRegion");
   const motionCanvas = document.getElementById("motionCanvas");
   const motionCtx    = motionCanvas.getContext("2d");
+  const speakerEl    = document.getElementById("speaker");
 
   let currentEmoji    = "😀";
   let lastInteraction = Date.now();
@@ -725,9 +727,11 @@
 
   // motion state
   let motionX = 0, motionY = 0;
-  let motionHistory = new Array(120).fill(0);
+  let motionLevel = 0;          // smoothed magnitude (0–1)
   let motionGraphEnabled = false;
   let motionGraphColor = "#7c3aed";
+  let graphWidth = 0, graphHeight = 0;
+  let dotX = 0;                 // current x of the dot
 
   // base vibe level for pulsing with audio
   let vibeBaseLevel = 0.5;
@@ -859,13 +863,13 @@
     document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
     document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
 
-    // Motion magnitude for graph (difference from ~1g)
+    // Motion magnitude for graph, smoothed to avoid spikiness
     const mag   = Math.sqrt(ax*ax + ay*ay + az*az);
-    const delta = Math.abs(mag - 9.81);         // deviation from gravity
-    let norm    = Math.min(1, delta / 4);       // 0–1
+    const delta = Math.abs(mag - 9.81);       // deviation from gravity
+    const rawNorm = Math.min(1, delta / 4);   // 0–1
 
-    motionHistory.push(norm);
-    motionHistory.shift();
+    const beta = 0.12; // smoothing factor for graph
+    motionLevel = motionLevel + beta * (rawNorm - motionLevel);
   }
 
   async function enableMotion() {
@@ -945,8 +949,10 @@
   function resizeMotionCanvas() {
     const rect = motionRegion.getBoundingClientRect();
     const dpr  = window.devicePixelRatio || 1;
-    motionCanvas.width  = rect.width * dpr;
-    motionCanvas.height = rect.height * dpr;
+    graphWidth  = rect.width;
+    graphHeight = rect.height;
+    motionCanvas.width  = graphWidth * dpr;
+    motionCanvas.height = graphHeight * dpr;
     motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -957,35 +963,35 @@
   }
 
   function drawMotionGraph() {
-    if (!motionGraphEnabled) {
-      // still clear so if it's toggled on it doesn't show old junk
-      motionCtx.clearRect(0, 0, motionCanvas.width, motionCanvas.height);
-      return;
-    }
-
-    const w = motionCanvas.width;
-    const h = motionCanvas.height;
+    const w = graphWidth;
+    const h = graphHeight;
     if (!w || !h) return;
 
     motionCtx.clearRect(0, 0, w, h);
 
-    const n = motionHistory.length;
-    if (n < 2) return;
+    if (!motionGraphEnabled) return;
 
+    // translucent panel behind the dot
+    motionCtx.save();
+    motionCtx.globalAlpha = 0.55;
+    motionCtx.fillStyle = "rgba(15, 23, 42, 0.85)";
+    motionCtx.fillRect(0, 0, w, h);
+    motionCtx.restore();
+
+    // advance the dot position
+    dotX += 2.5;
+    if (dotX > w) dotX = 0;
+
+    // vertical position from smoothed motionLevel
+    const y = h - motionLevel * h;
+
+    // draw the dot
     motionCtx.beginPath();
-    for (let i = 0; i < n; i++) {
-      const x = (i / (n - 1)) * w;
-      const v = motionHistory[i];
-      const y = h - v * h;
-      if (i === 0) motionCtx.moveTo(x, y);
-      else motionCtx.lineTo(x, y);
-    }
-
-    motionCtx.lineWidth = 2 * (window.devicePixelRatio || 1);
-    motionCtx.strokeStyle = motionGraphColor;
-    motionCtx.lineJoin = "round";
-    motionCtx.lineCap = "round";
-    motionCtx.stroke();
+    motionCtx.arc(dotX, y, 3.5, 0, Math.PI * 2);
+    motionCtx.fillStyle = motionGraphColor;
+    motionCtx.globalAlpha = 0.95;
+    motionCtx.fill();
+    motionCtx.globalAlpha = 1;
   }
 
   function renderLoop() {
@@ -993,28 +999,26 @@
     requestAnimationFrame(renderLoop);
   }
 
-  // Double-tap detection on motion region
-  let lastTapTime = 0;
-  function handleMotionRegionTap() {
-    const now = Date.now();
-    if (now - lastTapTime < 320) {
-      // double tap
-      motionGraphEnabled = !motionGraphEnabled;
-      if (motionGraphEnabled) {
-        motionCanvas.classList.add("active");
-      } else {
-        motionCanvas.classList.remove("active");
-      }
-      lastTapTime = 0;
+  /* SPEAKER TAP TOGGLE --------------------------------------------------- */
+
+  function toggleMotionGraph() {
+    motionGraphEnabled = !motionGraphEnabled;
+    if (motionGraphEnabled) {
+      motionCanvas.classList.add("active");
     } else {
-      lastTapTime = now;
+      motionCanvas.classList.remove("active");
     }
   }
 
-  motionRegion.addEventListener("click", handleMotionRegionTap);
-  motionRegion.addEventListener("touchend", (e) => {
+  speakerEl.addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleMotionGraph();
+  });
+
+  speakerEl.addEventListener("touchend", (e) => {
     e.preventDefault();
-    handleMotionRegionTap();
+    e.stopPropagation();
+    toggleMotionGraph();
   }, { passive: false });
 
   window.addEventListener("resize", resizeMotionCanvas);
