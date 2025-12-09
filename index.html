@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -248,6 +249,29 @@
       opacity: var(--audio-glow);
       pointer-events: none;
       transition: opacity 80ms linear;
+    }
+
+    /* MOTION GRAPH -------------------------------------------------------- */
+
+    .motion-graph-shell {
+      position: absolute;
+      top: 6px;
+      left: 8px;
+      right: 8px;
+      height: 30px;
+      z-index: 2;
+    }
+
+    .motion-graph-canvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+      opacity: 0;
+      transition: opacity 180ms ease-out;
+    }
+
+    .motion-graph-canvas.active {
+      opacity: 1;
     }
 
     .emoji-wrap {
@@ -518,29 +542,69 @@
       100% { opacity: 0; }
     }
 
-    /* SENSOR ENABLE BUTTON ------------------------------------------------ */
+    /* SENSOR PANEL -------------------------------------------------------- */
+
+    .sensor-panel {
+      position: fixed;
+      left: 50%;
+      bottom: max(18px, env(safe-area-inset-bottom, 18px));
+      transform: translateX(-50%);
+      width: 100%;
+      max-width: 420px;
+      padding: 0 10px;
+      z-index: 20;
+    }
+
+    .sensor-panel-inner {
+      background: rgba(15, 23, 42, 0.97);
+      border-radius: 18px;
+      padding: 10px 14px 8px;
+      box-shadow:
+        0 16px 40px rgba(0,0,0,0.9),
+        0 0 0 1px rgba(15,23,42,0.9);
+      border: 1px solid rgba(15,23,42,0.9);
+      color: #e5e7eb;
+      font-family: "Saira", system-ui, sans-serif;
+      font-size: 11px;
+    }
+
+    .sensor-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      margin-bottom: 4px;
+    }
+
+    .sensor-text {
+      font-size: 10px;
+      line-height: 1.4;
+      opacity: 0.9;
+    }
+
+    .sensor-actions {
+      display: flex;
+      justify-content: flex-end;
+      margin-top: 8px;
+    }
 
     .sensor-btn {
-      position: fixed;
-      inset: auto 50% 18px 50%;
-      transform: translateX(-50%);
-      padding: 10px 16px;
+      padding: 7px 14px;
       border-radius: 999px;
-      border: 1px solid rgba(15, 23, 42, 0.7);
-      background: rgba(15, 23, 42, 0.96);
+      border: 1px solid rgba(148, 163, 184, 0.8);
+      background: linear-gradient(135deg, #111827, #020617);
       color: #e5e7eb;
-      font-size: 11px;
-      letter-spacing: 0.12em;
+      font-size: 10px;
+      letter-spacing: 0.16em;
       text-transform: uppercase;
       font-family: "Saira", sans-serif;
       cursor: pointer;
       box-shadow:
         0 10px 26px rgba(0,0,0,0.85),
-        0 0 0 1px rgba(15,23,42,0.8);
-      z-index: 20;
+        0 0 0 1px rgba(0,0,0,0.7);
     }
 
-    .sensor-btn.hidden {
+    .sensor-panel.hidden {
       display: none;
     }
 
@@ -548,9 +612,19 @@
 </head>
 
 <body>
-  <button class="sensor-btn" id="sensorBtn">
-    Enable Motion &amp; Mic
-  </button>
+  <!-- Sensor / mic permission panel -->
+  <div class="sensor-panel" id="sensorPanel">
+    <div class="sensor-panel-inner">
+      <div class="sensor-title">Enable Motion &amp; Mic</div>
+      <div class="sensor-text">
+        Emoji Buddy reacts to your car's movement and nearby sound.
+        No data is stored or shared; all processing happens locally on your device.
+      </div>
+      <div class="sensor-actions">
+        <button class="sensor-btn" id="sensorBtn">Allow</button>
+      </div>
+    </div>
+  </div>
 
   <div class="canvas">
     <div class="gb-shell" id="gb" data-color="grape">
@@ -562,6 +636,11 @@
 
       <div class="gb-screen-frame">
         <div class="gb-screen boot-off boot-flash" id="screen">
+          <!-- Motion graph region (double-tap here to toggle) -->
+          <div class="motion-graph-shell" id="motionRegion">
+            <canvas class="motion-graph-canvas" id="motionCanvas"></canvas>
+          </div>
+
           <div class="emoji-wrap" id="emojiWrap">
             <div class="emoji" id="emoji">😀</div>
           </div>
@@ -627,7 +706,12 @@
   const vibeFillEl  = document.getElementById("vibeFill");
   const colorMenu   = document.getElementById("colorMenu");
   const sizeDial    = document.getElementById("sizeDial");
+  const sensorPanel = document.getElementById("sensorPanel");
   const sensorBtn   = document.getElementById("sensorBtn");
+
+  const motionRegion = document.getElementById("motionRegion");
+  const motionCanvas = document.getElementById("motionCanvas");
+  const motionCtx    = motionCanvas.getContext("2d");
 
   let currentEmoji    = "😀";
   let lastInteraction = Date.now();
@@ -641,6 +725,9 @@
 
   // motion state
   let motionX = 0, motionY = 0;
+  let motionHistory = new Array(120).fill(0);
+  let motionGraphEnabled = false;
+  let motionGraphColor = "#7c3aed";
 
   // base vibe level for pulsing with audio
   let vibeBaseLevel = 0.5;
@@ -723,6 +810,7 @@
     if (!target) return;
     const color = target.dataset.color;
     gbEl.setAttribute("data-color", color);
+    updateMotionGraphColor();
     markInteraction();
     try { localStorage.setItem("emojiBuddyColor", color); } catch(_) {}
   });
@@ -752,9 +840,10 @@
 
     const ax = acc.x || 0;
     const ay = acc.y || 0;
+    const az = acc.z || 0;
 
-    // Amplified motion
-    const sensitivity = 6.0;   // px per m/s^2 (was ~2.4)
+    // Amplified emoji motion
+    const sensitivity = 6.0;   // px per m/s^2
     const maxOffset   = 32;    // clamp
 
     let targetX = -ax * sensitivity; // push opposite G-force
@@ -763,12 +852,20 @@
     targetX = Math.max(-maxOffset, Math.min(maxOffset, targetX));
     targetY = Math.max(-maxOffset, Math.min(maxOffset, targetY));
 
-    const alpha = 0.25; // smoothing (higher = snappier)
+    const alpha = 0.25; // smoothing
     motionX = motionX + alpha * (targetX - motionX);
     motionY = motionY + alpha * (targetY - motionY);
 
     document.documentElement.style.setProperty("--emoji-offset-x", motionX.toFixed(1) + "px");
     document.documentElement.style.setProperty("--emoji-offset-y", motionY.toFixed(1) + "px");
+
+    // Motion magnitude for graph (difference from ~1g)
+    const mag   = Math.sqrt(ax*ax + ay*ay + az*az);
+    const delta = Math.abs(mag - 9.81);         // deviation from gravity
+    let norm    = Math.min(1, delta / 4);       // 0–1
+
+    motionHistory.push(norm);
+    motionHistory.shift();
   }
 
   async function enableMotion() {
@@ -812,14 +909,14 @@
       source.connect(analyser);
 
       function audioLoop() {
-        analyser.getByteFrequencyData(data); // frequency-based level
+        analyser.getByteFrequencyData(data);
         let sum = 0;
         for (let i = 0; i < data.length; i++) {
           sum += data[i];
         }
         const avg = sum / data.length;   // 0–255
         const norm = avg / 255;          // 0–1
-        let level = Math.min(1, norm * 3);  // amplify a lot
+        let level = Math.min(1, norm * 3);  // amplify
 
         // LCD glow amount
         document.documentElement
@@ -831,7 +928,7 @@
         vibeFillEl.style.transform = `scaleX(${pulsed.toFixed(3)})`;
 
         // Glow size
-        const extra = 10 + level * 32; // stronger glow
+        const extra = 10 + level * 32;
         vibeFillEl.style.boxShadow = `0 0 ${extra.toFixed(1)}px rgba(250, 204, 21, 0.98)`;
 
         requestAnimationFrame(audioLoop);
@@ -843,11 +940,90 @@
     }
   }
 
-  /* SENSOR BUTTON -------------------------------------------------------- */
+  /* MOTION GRAPH RENDERING ---------------------------------------------- */
+
+  function resizeMotionCanvas() {
+    const rect = motionRegion.getBoundingClientRect();
+    const dpr  = window.devicePixelRatio || 1;
+    motionCanvas.width  = rect.width * dpr;
+    motionCanvas.height = rect.height * dpr;
+    motionCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function updateMotionGraphColor() {
+    const styles = getComputedStyle(gbEl);
+    const c = styles.getPropertyValue("--shell-light").trim();
+    motionGraphColor = c || "#7c3aed";
+  }
+
+  function drawMotionGraph() {
+    if (!motionGraphEnabled) {
+      // still clear so if it's toggled on it doesn't show old junk
+      motionCtx.clearRect(0, 0, motionCanvas.width, motionCanvas.height);
+      return;
+    }
+
+    const w = motionCanvas.width;
+    const h = motionCanvas.height;
+    if (!w || !h) return;
+
+    motionCtx.clearRect(0, 0, w, h);
+
+    const n = motionHistory.length;
+    if (n < 2) return;
+
+    motionCtx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const x = (i / (n - 1)) * w;
+      const v = motionHistory[i];
+      const y = h - v * h;
+      if (i === 0) motionCtx.moveTo(x, y);
+      else motionCtx.lineTo(x, y);
+    }
+
+    motionCtx.lineWidth = 2 * (window.devicePixelRatio || 1);
+    motionCtx.strokeStyle = motionGraphColor;
+    motionCtx.lineJoin = "round";
+    motionCtx.lineCap = "round";
+    motionCtx.stroke();
+  }
+
+  function renderLoop() {
+    drawMotionGraph();
+    requestAnimationFrame(renderLoop);
+  }
+
+  // Double-tap detection on motion region
+  let lastTapTime = 0;
+  function handleMotionRegionTap() {
+    const now = Date.now();
+    if (now - lastTapTime < 320) {
+      // double tap
+      motionGraphEnabled = !motionGraphEnabled;
+      if (motionGraphEnabled) {
+        motionCanvas.classList.add("active");
+      } else {
+        motionCanvas.classList.remove("active");
+      }
+      lastTapTime = 0;
+    } else {
+      lastTapTime = now;
+    }
+  }
+
+  motionRegion.addEventListener("click", handleMotionRegionTap);
+  motionRegion.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    handleMotionRegionTap();
+  }, { passive: false });
+
+  window.addEventListener("resize", resizeMotionCanvas);
+
+  /* SENSOR PANEL --------------------------------------------------------- */
 
   sensorBtn.addEventListener("click", async () => {
     await Promise.allSettled([enableMotion(), enableAudio()]);
-    sensorBtn.classList.add("hidden");
+    sensorPanel.classList.add("hidden");
   });
 
   /* STARTUP INIT --------------------------------------------------------- */
@@ -859,6 +1035,8 @@
     } catch(_) {}
 
     applySize();
+    updateMotionGraphColor();
+    resizeMotionCanvas();
 
     // random emoji at startup
     const startEmoji = randomEmoji();
@@ -878,6 +1056,8 @@
         screenEl.classList.remove("boot-flash");
       }, 600);
     }, 260);
+
+    renderLoop();
   })();
 
 </script>
