@@ -628,7 +628,8 @@
     <div class="sensor-panel-inner">
       <div class="sensor-title">Enable Motion &amp; Mic</div>
       <div class="sensor-text">
-        Emoji Buddy reacts to your car's movement and nearby sound.
+        Mount your phone in its normal driving position, then tap Allow.
+        Emoji Buddy will treat this as “zero” and react to bumps, G-forces, and sound.
         No data is stored or shared; all processing happens locally on your device.
       </div>
       <div class="sensor-actions">
@@ -785,7 +786,7 @@
           break;
       }
 
-      // prevent chaos in calm states
+      // allow a bit of chaos in non-calm states
       if (state !== "rest" && state !== "calmMusic" && state !== "deepRest") {
         if (Math.random() < 0.2) {
           pool = EMOJI_ALL;
@@ -817,7 +818,7 @@
       return level;
     }
 
-    // ---------- Motion manager ----------
+    // ---------- Motion manager with baseline ----------
     class MotionManager {
       constructor(onUpdate) {
         this.onUpdate = onUpdate;
@@ -828,6 +829,12 @@
         this.motionMag = 0;
         this.motionJitter = 0;
         this.lastActiveTime = Date.now();
+
+        // baseline (zero) for mounted orientation
+        this.baseX = 0;
+        this.baseY = 0;
+        this.baseZ = 0;
+        this.calibrated = false;
       }
 
       async start() {
@@ -849,8 +856,22 @@
         const acc = event.accelerationIncludingGravity;
         if (!acc) return;
 
-        const ax = acc.x || 0;
-        const ay = acc.y || 0;
+        let ax = acc.x || 0;
+        let ay = acc.y || 0;
+        let az = acc.z || 0;
+
+        // First samples after mount: treat as baseline gravity
+        if (!this.calibrated) {
+          this.baseX = ax;
+          this.baseY = ay;
+          this.baseZ = az;
+          this.calibrated = true;
+        }
+
+        // Subtract baseline so mounted portrait = "zero"
+        ax -= this.baseX;
+        ay -= this.baseY;
+        az -= this.baseZ;
 
         const sensitivity = 6.0;
         const maxOffset   = 32;
