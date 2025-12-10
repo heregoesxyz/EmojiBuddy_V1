@@ -321,8 +321,8 @@
     /* BOTTOM CONTROLS ----------------------------------------------------- */
 
     .gb-bottom {
-      display: grid;
-      grid-template-columns: auto 1fr auto auto;
+      display: flex;
+      justify-content: space-between;
       align-items: center;
       gap: 8px;
       position: relative;
@@ -393,88 +393,6 @@
     .color-swatch[data-color="smoke"] { background: linear-gradient(135deg,#9ca3af,#374151); }
     .color-swatch[data-color="black"] { background: linear-gradient(135deg,#020617,#111827); }
     .color-swatch[data-color="beige"] { background: linear-gradient(135deg,#f3e7c8,#b7966b); }
-
-    /* SENSITIVITY STRIP --------------------------------------------------- */
-
-    .sensitivity-strip {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 4px;
-      font-family: "Saira", sans-serif;
-      font-size: 8px;
-      letter-spacing: 0.16em;
-      text-transform: uppercase;
-      color: rgba(0, 0, 0, 0.75);
-      text-shadow:
-        0 0 3px rgba(255, 255, 255, 0.35),
-        0 0 6px rgba(0, 0, 0, 0.45);
-    }
-
-    .sensitivity-label {
-      font-size: 8px;
-    }
-
-    .sensitivity-slider-wrap {
-      display: flex;
-      flex-direction: column;
-      align-items: stretch;
-      gap: 2px;
-      min-width: 90px;
-    }
-
-    .sensitivity-slider {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 100%;
-      height: 4px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.85);
-      outline: none;
-      cursor: pointer;
-    }
-
-    .sensitivity-slider::-webkit-slider-thumb {
-      -webkit-appearance: none;
-      appearance: none;
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      background: var(--accent);
-      box-shadow:
-        0 0 0 1px rgba(15,23,42,0.9),
-        0 0 10px rgba(250, 204, 21, 0.9);
-      margin-top: -5px;
-    }
-
-    .sensitivity-slider::-moz-range-thumb {
-      width: 14px;
-      height: 14px;
-      border-radius: 999px;
-      background: var(--accent);
-      border: none;
-      box-shadow:
-        0 0 0 1px rgba(15,23,42,0.9),
-        0 0 10px rgba(250, 204, 21, 0.9);
-    }
-
-    .sensitivity-slider::-moz-range-track {
-      height: 4px;
-      border-radius: 999px;
-      background: rgba(15, 23, 42, 0.85);
-    }
-
-    .sensitivity-labels {
-      display: flex;
-      justify-content: space-between;
-      width: 100%;
-      font-size: 7px;
-      opacity: 0.85;
-    }
-
-    .sensitivity-labels span {
-      text-transform: uppercase;
-    }
 
     /* SIZE STRIP ---------------------------------------------------------- */
 
@@ -823,18 +741,6 @@
           </div>
         </div>
 
-        <div class="sensitivity-strip">
-          <span class="sensitivity-label">Sensitivity</span>
-          <div class="sensitivity-slider-wrap">
-            <input type="range" min="0" max="2" step="1" value="1" id="sensitivitySlider" class="sensitivity-slider" />
-            <div class="sensitivity-labels">
-              <span>Chill</span>
-              <span>Std</span>
-              <span>Spicy</span>
-            </div>
-          </div>
-        </div>
-
         <div class="size-strip">
           <span class="size-dial-label">Size</span>
           <div class="size-dial-wrap">
@@ -855,48 +761,13 @@
   </div>
 
   <script>
-    // ---------- Sensitivity presets ----------
-    const SENSITIVITY_LEVELS = [
-      {
-        name: "Chill",
-        hardStraightMag: 0.40,
-        hardCornerMag: 0.48,
-        longDomRatio: 1.40,
-        latDomRatio: 1.70,
-        minLateralCorner: 0.40,
-        maxJitterStraight: 0.22
-      },
-      {
-        name: "Standard",
-        hardStraightMag: 0.35,
-        hardCornerMag: 0.44,
-        longDomRatio: 1.30,
-        latDomRatio: 1.60,
-        minLateralCorner: 0.36,
-        maxJitterStraight: 0.26
-      },
-      {
-        name: "Spicy",
-        hardStraightMag: 0.30,
-        hardCornerMag: 0.40,
-        longDomRatio: 1.25,
-        latDomRatio: 1.50,
-        minLateralCorner: 0.32,
-        maxJitterStraight: 0.30
-      }
-    ];
-
-    let sensitivityIndex = 1; // default: Standard
-
-    try {
-      const savedSens = localStorage.getItem("emojiBuddySensitivity");
-      if (savedSens !== null) {
-        const idx = parseInt(savedSens, 10);
-        if (!isNaN(idx) && idx >= 0 && idx < SENSITIVITY_LEVELS.length) {
-          sensitivityIndex = idx;
-        }
-      }
-    } catch (_) {}
+    // ---------- Standard sensitivity constants (formerly "Standard" profile) ----------
+    const HARD_STRAIGHT_MAG   = 0.35;
+    const HARD_CORNER_MAG     = 0.44;
+    const LONG_DOM_RATIO      = 1.30;
+    const LATERAL_DOM_RATIO   = 1.60;
+    const MIN_LATERAL_CORNER  = 0.36;
+    const MAX_JITTER_STRAIGHT = 0.26;
 
     // ---------- Emoji logic & pools ----------
     const EMOJI_ALL = [
@@ -927,7 +798,7 @@
       "😎","🤠","🫡","🤖","🎃"
     ])];
 
-    // Cornering G (reserved for spicy + “heart-ish” / fun)
+    // Cornering G (reserved for spicy + “fun/heart-ish”)
     const EMOJI_HARD_CORNER = [...new Set([
       "😤","😠","😡","🤬","😬","😮‍💨","🫨",
       "😱","🤯","😳","😵","😵‍💫","🥵",
@@ -974,8 +845,6 @@
       const now = Date.now();
       const stillMs = now - lastActiveTime;
 
-      const profile = SENSITIVITY_LEVELS[sensitivityIndex];
-
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && stillMs > 30000;
 
@@ -987,13 +856,6 @@
       const longitudinalNorm = Math.min(1, longitudinal / MAX_OFFSET);
 
       const isRoughRoad = jitter > 0.32;
-
-      const HARD_STRAIGHT_MAG   = profile.hardStraightMag;
-      const HARD_CORNER_MAG     = profile.hardCornerMag;
-      const LONG_DOM_RATIO      = profile.longDomRatio;
-      const LATERAL_DOM_RATIO   = profile.latDomRatio;
-      const MIN_LATERAL_CORNER  = profile.minLateralCorner;
-      const MAX_JITTER_STRAIGHT = profile.maxJitterStraight;
 
       const isHardStraightCandidate =
         mag > HARD_STRAIGHT_MAG &&
@@ -1556,7 +1418,6 @@
     const sensorPanel = document.getElementById("sensorPanel");
     const speakerEl   = document.getElementById("speaker");
     const screenEl    = document.getElementById("screen");
-    const sensitivitySlider = document.getElementById("sensitivitySlider");
 
     let motionState = {
       motionX: 0,
@@ -1585,18 +1446,6 @@
       const color = screenUI.getCurrentThemeLightColor();
       graphUI.setColor(color);
     };
-
-    // Initialize slider with stored sensitivity
-    if (sensitivitySlider) {
-      sensitivitySlider.value = sensitivityIndex.toString();
-      sensitivitySlider.addEventListener("input", () => {
-        const idx = parseInt(sensitivitySlider.value, 10);
-        if (!isNaN(idx) && idx >= 0 && idx < SENSITIVITY_LEVELS.length) {
-          sensitivityIndex = idx;
-          try { localStorage.setItem("emojiBuddySensitivity", String(idx)); } catch(_) {}
-        }
-      });
-    }
 
     // Tap on screen => manually cycle baseline personality
     screenEl.addEventListener("click", () => {
