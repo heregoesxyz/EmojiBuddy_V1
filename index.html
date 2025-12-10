@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -322,8 +321,8 @@
     /* BOTTOM CONTROLS ----------------------------------------------------- */
 
     .gb-bottom {
-      display: flex;
-      justify-content: space-between;
+      display: grid;
+      grid-template-columns: auto 1fr auto auto;
       align-items: center;
       gap: 8px;
       position: relative;
@@ -395,10 +394,12 @@
     .color-swatch[data-color="black"] { background: linear-gradient(135deg,#020617,#111827); }
     .color-swatch[data-color="beige"] { background: linear-gradient(135deg,#f3e7c8,#b7966b); }
 
-    .status-strip {
+    /* SENSITIVITY STRIP --------------------------------------------------- */
+
+    .sensitivity-strip {
       display: flex;
       flex-direction: column;
-      align-items: flex-end;
+      align-items: center;
       gap: 4px;
       font-family: "Saira", sans-serif;
       font-size: 8px;
@@ -410,33 +411,72 @@
         0 0 6px rgba(0, 0, 0, 0.45);
     }
 
-    .vibe-label {
-      opacity: 0.9;
+    .sensitivity-label {
+      font-size: 8px;
     }
 
-    .vibe-gauge {
-      width: 72px;
-      height: 10px;
+    .sensitivity-slider-wrap {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 2px;
+      min-width: 90px;
+    }
+
+    .sensitivity-slider {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 100%;
+      height: 4px;
       border-radius: 999px;
-      border: 1px solid rgba(15, 23, 42, 0.9);
-      background:
-        radial-gradient(circle at 0 50%, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1));
-      overflow: hidden;
-      position: relative;
+      background: rgba(15, 23, 42, 0.85);
+      outline: none;
+      cursor: pointer;
     }
 
-    .vibe-fill {
-      position: absolute;
-      inset: 0;
-      transform-origin: left center;
-      transform: scaleX(0.5);
-      border-radius: inherit;
-      background: linear-gradient(90deg, #22c55e, #facc15, #f97316);
-      box-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
-      transition: transform 120ms ease-out, box-shadow 80ms ease-out;
+    .sensitivity-slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: var(--accent);
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,0.9),
+        0 0 10px rgba(250, 204, 21, 0.9);
+      margin-top: -5px;
     }
 
-    /* SIZE DIAL ----------------------------------------------------------- */
+    .sensitivity-slider::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border-radius: 999px;
+      background: var(--accent);
+      border: none;
+      box-shadow:
+        0 0 0 1px rgba(15,23,42,0.9),
+        0 0 10px rgba(250, 204, 21, 0.9);
+    }
+
+    .sensitivity-slider::-moz-range-track {
+      height: 4px;
+      border-radius: 999px;
+      background: rgba(15, 23, 42, 0.85);
+    }
+
+    .sensitivity-labels {
+      display: flex;
+      justify-content: space-between;
+      width: 100%;
+      font-size: 7px;
+      opacity: 0.85;
+    }
+
+    .sensitivity-labels span {
+      text-transform: uppercase;
+    }
+
+    /* SIZE STRIP ---------------------------------------------------------- */
 
     .size-strip {
       display: flex;
@@ -488,6 +528,49 @@
 
     .size-dial-label {
       font-size: 8px;
+    }
+
+    /* STATUS / VIBES ------------------------------------------------------ */
+
+    .status-strip {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 4px;
+      font-family: "Saira", sans-serif;
+      font-size: 8px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: rgba(0, 0, 0, 0.75);
+      text-shadow:
+        0 0 3px rgba(255, 255, 255, 0.35),
+        0 0 6px rgba(0, 0, 0, 0.45);
+    }
+
+    .vibe-label {
+      opacity: 0.9;
+    }
+
+    .vibe-gauge {
+      width: 72px;
+      height: 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(15, 23, 42, 0.9);
+      background:
+        radial-gradient(circle at 0 50%, rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1));
+      overflow: hidden;
+      position: relative;
+    }
+
+    .vibe-fill {
+      position: absolute;
+      inset: 0;
+      transform-origin: left center;
+      transform: scaleX(0.5);
+      border-radius: inherit;
+      background: linear-gradient(90deg, #22c55e, #facc15, #f97316);
+      box-shadow: 0 0 10px rgba(250, 204, 21, 0.8);
+      transition: transform 120ms ease-out, box-shadow 80ms ease-out;
     }
 
     /* shell wobble */
@@ -740,6 +823,18 @@
           </div>
         </div>
 
+        <div class="sensitivity-strip">
+          <span class="sensitivity-label">Sensitivity</span>
+          <div class="sensitivity-slider-wrap">
+            <input type="range" min="0" max="2" step="1" value="1" id="sensitivitySlider" class="sensitivity-slider" />
+            <div class="sensitivity-labels">
+              <span>Chill</span>
+              <span>Std</span>
+              <span>Spicy</span>
+            </div>
+          </div>
+        </div>
+
         <div class="size-strip">
           <span class="size-dial-label">Size</span>
           <div class="size-dial-wrap">
@@ -760,6 +855,49 @@
   </div>
 
   <script>
+    // ---------- Sensitivity presets ----------
+    const SENSITIVITY_LEVELS = [
+      {
+        name: "Chill",
+        hardStraightMag: 0.40,
+        hardCornerMag: 0.48,
+        longDomRatio: 1.40,
+        latDomRatio: 1.70,
+        minLateralCorner: 0.40,
+        maxJitterStraight: 0.22
+      },
+      {
+        name: "Standard",
+        hardStraightMag: 0.35,
+        hardCornerMag: 0.44,
+        longDomRatio: 1.30,
+        latDomRatio: 1.60,
+        minLateralCorner: 0.36,
+        maxJitterStraight: 0.26
+      },
+      {
+        name: "Spicy",
+        hardStraightMag: 0.30,
+        hardCornerMag: 0.40,
+        longDomRatio: 1.25,
+        latDomRatio: 1.50,
+        minLateralCorner: 0.32,
+        maxJitterStraight: 0.30
+      }
+    ];
+
+    let sensitivityIndex = 1; // default: Standard
+
+    try {
+      const savedSens = localStorage.getItem("emojiBuddySensitivity");
+      if (savedSens !== null) {
+        const idx = parseInt(savedSens, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < SENSITIVITY_LEVELS.length) {
+          sensitivityIndex = idx;
+        }
+      }
+    } catch (_) {}
+
     // ---------- Emoji logic & pools ----------
     const EMOJI_ALL = [
       "😀","😃","😄","😁","😆","😅","😂","🤣","🥲","🥹","☺️","😊","😇","🙂","🙃","😉","😌",
@@ -772,18 +910,14 @@
       "😺","😸","😹","😻","😼","😽","🙀","😿","😾"
     ];
 
-    // calm / rest pool (for deepRest)
     const EMOJI_CALM_REST   = ["😌","☺️","😊","😇","😴","🫩","😪","🤗","🫠"];
     const EMOJI_DEEP_REST   = ["😴","😪","🫩"];
-
-    // rough road (sick / dizzy)
     const EMOJI_ROUGH_ROAD  = ["🤢","🤮","🤧","😷","🤒","🤕","🥴","😵","😵‍💫"];
 
-    // Baseline personality for calm driving
     const EMOJI_BASELINE    = ["🙂","☺️","😌","😏"];
     const FAVORITE_BASELINE = "🙂";
 
-    // HARD STRAIGHT-LINE G (accel / brake) — no heart-eyes here
+    // Straight-line G (accel / brake)
     const EMOJI_HARD_STRAIGHT = [...new Set([
       "😤","😠","😡","🤬","😬","😮‍💨","🫨",
       "😱","🤯","😳","😵","😵‍💫","🥵",
@@ -793,44 +927,32 @@
       "😎","🤠","🫡","🤖","🎃"
     ])];
 
-    // HARD CORNERING G — fun / spicy + hearts reserved for cornering
+    // Cornering G (reserved for spicy + “heart-ish” / fun)
     const EMOJI_HARD_CORNER = [...new Set([
-      // spicy / intense
       "😤","😠","😡","🤬","😬","😮‍💨","🫨",
       "😱","🤯","😳","😵","😵‍💫","🥵",
       "😈","👿","👹","👺",
-      // hype / party
       "🤩","🥳","😛","😝","😜","🤪","😎","🤠","🎃",
-      // hearts & cat hearts reserved here
       "😍","🥰","😻","😺","😸","😹","😼","😽",
-      // a few calm / composed
       "😌","☺️","😊","😇","🤗","🫡","🫠"
     ])];
 
-    // spicy/intense faces we want mostly reserved for “hard” states
     const EMOJI_SPICY = new Set([
       "😈","👿","🤬","😡","😠","💩","🤯","😱","😳","🤮","🤢","🥵","👹","👺"
     ]);
 
-    // Safe chaos pool = everything except spicy
     const SAFE_CHAOS_POOL = EMOJI_ALL.filter(e => !EMOJI_SPICY.has(e));
 
-    // recent-emoji buffer to avoid immediate repeats (incident / chaos)
     const RECENT_MAX = 8;
     const recentEmojis = [];
-
-    // session coverage: try to see many unique emojis per drive
     const SESSION_COVERAGE_TARGET = 40;
     const sessionSeen = new Set();
 
-    // Motion-driven incident states (override baseline temporarily)
     const incidentStates = new Set(["hardStraight", "hardCorner", "roughRoad", "deepRest"]);
 
-    // Baseline persistence
-    const BASELINE_DURATION_MS = 3 * 60 * 1000; // 3 minutes
-
-    // Incident lock: keep same incident emoji/state for at least this long
+    const BASELINE_DURATION_MS = 3 * 60 * 1000;
     const INCIDENT_LOCK_MS = 3000;
+
     let incidentLockUntil = 0;
 
     let baseEmoji = null;
@@ -840,82 +962,82 @@
     let currentState = "rest";
     let lastEventTime = 0;
 
-    // --- State classification: motion only (audio ignored for state/emoji) ---
-    function classifyState(motion, _audioIgnored) {
-      const { mag, jitter, lastActiveTime, motionX, motionY } = motion;
+    // Streak gating for hardStraight / hardCorner
+    let straightCandidateStreak = 0;
+    let cornerCandidateStreak  = 0;
+    const REQUIRED_STRAIGHT_TICKS = 2; // ~700ms
+    const REQUIRED_CORNER_TICKS   = 2; // ~700ms
 
+    // --- Per-frame motion classification (no streaks here) ---
+    function classifyMotionFrame(motion, _audioIgnored) {
+      const { mag, jitter, lastActiveTime, motionX, motionY } = motion;
       const now = Date.now();
       const stillMs = now - lastActiveTime;
 
-      // Very still / deep rest
+      const profile = SENSITIVITY_LEVELS[sensitivityIndex];
+
       const isVeryStill  = mag < 0.08 && jitter < 0.05;
       const deepRestActive = isVeryStill && stillMs > 30000;
 
-      // Lateral vs longitudinal based on filtered screen offsets
       const lateral      = Math.abs(motionX || 0);
       const longitudinal = Math.abs(motionY || 0);
 
-      const MAX_OFFSET = 32; // matches MotionManager clamp
+      const MAX_OFFSET = 32;
       const lateralNorm      = Math.min(1, lateral / MAX_OFFSET);
       const longitudinalNorm = Math.min(1, longitudinal / MAX_OFFSET);
 
-      // ---- TUNING CONSTANTS -------------------------------------------------
-      // Rough road: keep similar but slightly biased toward jitter
       const isRoughRoad = jitter > 0.32;
 
-      // Make straight-line easier to hit for an average car:
-      // lower mag threshold, modest dominance of longitudinal over lateral
-      const HARD_STRAIGHT_MAG = 0.32;
-      const LONG_DOM_RATIO    = 1.3;  // longitudinal must be ~30% stronger
+      const HARD_STRAIGHT_MAG   = profile.hardStraightMag;
+      const HARD_CORNER_MAG     = profile.hardCornerMag;
+      const LONG_DOM_RATIO      = profile.longDomRatio;
+      const LATERAL_DOM_RATIO   = profile.latDomRatio;
+      const MIN_LATERAL_CORNER  = profile.minLateralCorner;
+      const MAX_JITTER_STRAIGHT = profile.maxJitterStraight;
 
-      // Make cornering stricter so small turns & bumps don't trigger:
-      // higher mag, strong lateral dominance, and a minimum absolute lateral level
-      const HARD_CORNER_MAG        = 0.42;
-      const LATERAL_DOM_RATIO      = 1.6;  // lateral ~60% stronger than longitudinal
-      const MIN_LATERAL_FOR_CORNER = 0.35; // normalized (~11+ px of offset)
-
-      const isHardStraight =
+      const isHardStraightCandidate =
         mag > HARD_STRAIGHT_MAG &&
-        longitudinalNorm > lateralNorm * LONG_DOM_RATIO;
+        longitudinalNorm > lateralNorm * LONG_DOM_RATIO &&
+        jitter < MAX_JITTER_STRAIGHT;
 
-      const isHardCorner =
+      const isHardCornerCandidate =
         mag > HARD_CORNER_MAG &&
         lateralNorm > longitudinalNorm * LATERAL_DOM_RATIO &&
-        lateralNorm > MIN_LATERAL_FOR_CORNER;
+        lateralNorm > MIN_LATERAL_CORNER;
 
-      // “Cruise cornering”: light to medium turns, not full-send
       const isCornerCruise =
-        !isHardCorner &&
+        !isHardCornerCandidate &&
         mag > 0.16 && mag <= HARD_CORNER_MAG &&
         lateralNorm > longitudinalNorm * 1.1 &&
         jitter < 0.45;
 
-      // ---- ORDERED CLASSIFICATION ------------------------------------------
+      let baseState;
 
-      if (deepRestActive) return "deepRest";
+      if (deepRestActive) {
+        baseState = "deepRest";
+      } else if (isVeryStill) {
+        baseState = "rest";
+      } else if (isRoughRoad) {
+        baseState = "roughRoad";
+      } else if (isCornerCruise) {
+        baseState = "cruise";
+      } else {
+        baseState = "neutral";
+      }
 
-      if (isVeryStill)   return "rest";
-      if (isRoughRoad)   return "roughRoad";
-
-      // Hard incidents: corner first, then straight
-      if (isHardCorner)  return "hardCorner";
-      if (isHardStraight) return "hardStraight";
-
-      if (isCornerCruise) return "cruise";
-
-      return "neutral";
+      return {
+        baseState,
+        isHardStraightCandidate,
+        isHardCornerCandidate
+      };
     }
 
     function randomEmojiFrom(list) {
       return list[Math.floor(Math.random() * list.length)];
     }
 
-    // pick a new baseline with 70% bias to FAVORITE_BASELINE
-    // but never the same as the previous baseline
     function pickBaselineEmoji(prevBaseline) {
       let pool = EMOJI_BASELINE.slice();
-
-      // avoid consecutive identical baseline sessions
       let candidates = pool.filter(e => e !== prevBaseline);
       if (candidates.length === 0) candidates = pool.slice();
 
@@ -954,7 +1076,6 @@
           break;
       }
 
-      // --- CHAOS VARIETY WITHOUT UNLOCKING SPICY IN CALM STATES ---
       let chaosChance = 0.0;
 
       if (state === "rest" || state === "cruise") {
@@ -962,19 +1083,17 @@
       } else if (state === "neutral") {
         chaosChance = 0.45;
       } else if (state !== "deepRest") {
-        // hardStraight / hardCorner / roughRoad still themed but with a little chaos
         chaosChance = 0.25;
       }
 
       if (chaosChance > 0 && Math.random() < chaosChance) {
         if (incidentStates.has(state)) {
-          pool = EMOJI_ALL; // full chaos for incident states
+          pool = EMOJI_ALL;
         } else {
-          pool = SAFE_CHAOS_POOL; // safe faces for calm chaos
+          pool = SAFE_CHAOS_POOL;
         }
       }
 
-      // --- SESSION COVERAGE: prefer emojis not yet used this drive ---
       let candidatePool = pool;
 
       if (sessionSeen.size < SESSION_COVERAGE_TARGET) {
@@ -986,7 +1105,6 @@
 
       let next = randomEmojiFrom(candidatePool);
 
-      // avoid repeating last or very recent emojis
       let attempts = 0;
       while (
         candidatePool.length > 1 &&
@@ -997,11 +1115,9 @@
         attempts++;
       }
 
-      // update recent history
       recentEmojis.unshift(next);
       if (recentEmojis.length > RECENT_MAX) recentEmojis.pop();
 
-      // update session coverage
       sessionSeen.add(next);
 
       return next;
@@ -1036,7 +1152,6 @@
         this.motionJitter = 0;
         this.lastActiveTime = Date.now();
 
-        // baseline orientation, adapts slowly to "normal chaos"
         this.baseX = 0;
         this.baseY = 0;
         this.baseZ = 0;
@@ -1080,7 +1195,6 @@
           this.baselineInitialized = true;
         }
 
-        // how much raw acceleration changed since last frame
         const dX = rawX - this.prevRawX;
         const dY = rawY - this.prevRawY;
         const dZ = rawZ - this.prevRawZ;
@@ -1090,7 +1204,6 @@
         this.prevRawY = rawY;
         this.prevRawZ = rawZ;
 
-        // slowly adapt baseline when changes are small
         const deltaThreshold = 0.35;
         if (rawDelta < deltaThreshold) {
           const beta = 0.02;
@@ -1099,7 +1212,6 @@
           this.baseZ += beta * (rawZ - this.baseZ);
         }
 
-        // dynamic acceleration relative to baseline
         let ax = rawX - this.baseX;
         let ay = rawY - this.baseY;
         let az = rawZ - this.baseZ;
@@ -1107,7 +1219,6 @@
         const sensitivity = 6.0;
         const maxOffset   = 32;
 
-        // Invert X so left/right feel better aligned with turns
         let targetX = -ax * sensitivity;
         let targetY = -ay * sensitivity;
 
@@ -1193,7 +1304,6 @@
             const norm = avg / 255;
             let levelRaw = Math.min(1, norm * 3);
 
-            // adapt noise floor so constant music/road noise becomes normal
             if (levelRaw < this.noiseFloor) {
               this.noiseFloor += 0.02 * (levelRaw - this.noiseFloor);
             } else {
@@ -1446,6 +1556,7 @@
     const sensorPanel = document.getElementById("sensorPanel");
     const speakerEl   = document.getElementById("speaker");
     const screenEl    = document.getElementById("screen");
+    const sensitivitySlider = document.getElementById("sensitivitySlider");
 
     let motionState = {
       motionX: 0,
@@ -1475,6 +1586,18 @@
       graphUI.setColor(color);
     };
 
+    // Initialize slider with stored sensitivity
+    if (sensitivitySlider) {
+      sensitivitySlider.value = sensitivityIndex.toString();
+      sensitivitySlider.addEventListener("input", () => {
+        const idx = parseInt(sensitivitySlider.value, 10);
+        if (!isNaN(idx) && idx >= 0 && idx < SENSITIVITY_LEVELS.length) {
+          sensitivityIndex = idx;
+          try { localStorage.setItem("emojiBuddySensitivity", String(idx)); } catch(_) {}
+        }
+      });
+    }
+
     // Tap on screen => manually cycle baseline personality
     screenEl.addEventListener("click", () => {
       const now = Date.now();
@@ -1499,8 +1622,8 @@
     }, { passive: false });
 
     // Sensor panel: separate yes/no for motion & mic
-    let motionChoice = null; // true/false
-    let micChoice    = null; // true/false
+    let motionChoice = null;
+    let micChoice    = null;
     let sensorsStarted = false;
 
     const sensorButtons = sensorPanel.querySelectorAll(".sensor-btn[data-type][data-choice]");
@@ -1531,7 +1654,6 @@
           micChoice = choice;
         }
 
-        // visual selected state (only one per type)
         sensorButtons.forEach(b => {
           if (b.dataset.type === type) b.classList.remove("selected");
         });
@@ -1543,21 +1665,35 @@
 
     function tick() {
       const now = Date.now();
-      const rawState = classifyState(motionState, audioState);
+      const frame = classifyMotionFrame(motionState, audioState);
+
+      // Update candidate streaks
+      if (frame.isHardStraightCandidate) {
+        straightCandidateStreak++;
+      } else {
+        straightCandidateStreak = 0;
+      }
+
+      if (frame.isHardCornerCandidate) {
+        cornerCandidateStreak++;
+      } else {
+        cornerCandidateStreak = 0;
+      }
+
+      let baseState = frame.baseState;
 
       const wasIncident   = incidentStates.has(currentState);
-      const rawIsIncident = incidentStates.has(rawState);
       const inIncidentLock = wasIncident && now < incidentLockUntil;
 
-      // mark baseline change as pending if 3 minutes elapsed
       if (baseEmoji && (now - baseEmojiLastSet > BASELINE_DURATION_MS)) {
         pendingBaselineChange = true;
       }
 
-      // --- Incident lock handling (Option B: corners > straight) ---
+      // While in lock: hold the incident emoji/state, but allow upgrade from hardStraight → hardCorner
       if (inIncidentLock) {
-        // Only allow upgrade: hardStraight -> hardCorner
-        if (currentState === "hardStraight" && rawState === "hardCorner") {
+        if (currentState === "hardStraight" &&
+            cornerCandidateStreak >= REQUIRED_CORNER_TICKS) {
+
           const emoji = pickEmojiForState("hardCorner", currentEmoji);
           currentEmoji = emoji;
           currentState = "hardCorner";
@@ -1569,42 +1705,49 @@
           return;
         }
 
-        // Otherwise respect the lock: keep current incident emoji/state
         updateStateDebug(currentState);
         return;
       }
 
-      // --- No lock active ---
+      // Determine derived state with streak-based hardStraight / hardCorner
+      let derivedState = baseState;
 
-      // New or ongoing incident → choose emoji + start 3s lock
+      if (cornerCandidateStreak >= REQUIRED_CORNER_TICKS) {
+        derivedState = "hardCorner";
+      } else if (straightCandidateStreak >= REQUIRED_STRAIGHT_TICKS) {
+        derivedState = "hardStraight";
+      }
+
+      const rawIsIncident = incidentStates.has(derivedState);
+
+      // New incident just triggered (after streak satisfied)
       if (rawIsIncident) {
-        const emoji = pickEmojiForState(rawState, currentEmoji);
+        const emoji = pickEmojiForState(derivedState, currentEmoji);
         currentEmoji = emoji;
-        currentState = rawState;
+        currentState = derivedState;
         incidentLockUntil = now + INCIDENT_LOCK_MS;
         lastEventTime = now;
 
-        screenUI.setEmoji(emoji, rawState);
-        updateStateDebug(rawState);
+        screenUI.setEmoji(emoji, derivedState);
+        updateStateDebug(derivedState);
         return;
       }
 
-      // From here: calm / neutral (rest, cruise, neutral, etc.)
-      currentState = rawState;
-      updateStateDebug(rawState);
+      // From here: non-incident / calm-ish states
+      currentState = derivedState;
+      updateStateDebug(derivedState);
 
-      // ensure we have a baseline
       if (!baseEmoji) {
         const newBaseline = pickBaselineEmoji(null);
         baseEmoji = newBaseline;
         baseEmojiLastSet = now;
         pendingBaselineChange = false;
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, rawState);
+        screenUI.setEmoji(baseEmoji, derivedState);
         return;
       }
 
-      // Leaving an incident after lock expired → go back to baseline (which may change)
+      // Leaving an incident earlier (lock expired) → fall back to baseline, optionally refreshed
       if (wasIncident && !rawIsIncident) {
         if (pendingBaselineChange) {
           const newBaseline = pickBaselineEmoji(baseEmoji);
@@ -1613,11 +1756,11 @@
           pendingBaselineChange = false;
         }
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, rawState);
+        screenUI.setEmoji(baseEmoji, derivedState);
         return;
       }
 
-      // calm & no incident — apply pending baseline change if any
+      // Calm & no incident — apply pending baseline change if any
       if (pendingBaselineChange) {
         const newBaseline = pickBaselineEmoji(baseEmoji);
         baseEmoji = newBaseline;
@@ -1625,10 +1768,9 @@
         pendingBaselineChange = false;
       }
 
-      // ensure displayed emoji is baseline
       if (currentEmoji !== baseEmoji) {
         currentEmoji = baseEmoji;
-        screenUI.setEmoji(baseEmoji, rawState);
+        screenUI.setEmoji(baseEmoji, derivedState);
       }
     }
 
@@ -1638,7 +1780,8 @@
       screenUI.forceCenterEmoji();
 
       const now = Date.now();
-      const initState = classifyState(motionState, audioState);
+      const initFrame = classifyMotionFrame(motionState, audioState);
+      const initState = initFrame.baseState;
       currentState = initState;
 
       const initBaseline = pickBaselineEmoji(null);
